@@ -1125,13 +1125,13 @@ static void show_custom_ors_menu() {
     char list_prefix[] = "Search ";
     char buf[256];
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
-    sprintf(buf, "%s%s", list_prefix, primary_path);
+    sprintf(buf, "%s%s", list_prefix, "Internal sdcard");
     list[0] = strdup(buf);
 
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            sprintf(buf, "%s%s", list_prefix, "External sdcard");
             list[i + 1] = strdup(buf);
         }
     }
