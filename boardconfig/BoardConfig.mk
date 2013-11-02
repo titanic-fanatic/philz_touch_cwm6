@@ -4,6 +4,13 @@
 # By PhilZ for PhilZ Touch recovery        #
 ############################################
 
+#Galaxy S2 HD LTE Canada - celoxhd
+ifeq ($(TARGET_PRODUCT), cm_celoxhd)
+    TARGET_COMMON_NAME := celoxhd
+    BOOTLOADER_CMD_ARG := "download"
+    BOARD_UMS_LUNFILE := "/sys/devices/virtual/android_usb/android0/f_mass_storage/lun%d/file"
+    BRIGHTNESS_SYS_FILE := "/sys/class/backlight/panel/brightness"
+
 #Galaxy S2 International - i9100
 ifeq ($(TARGET_PRODUCT), cm_i9100)
     TARGET_COMMON_NAME := i9100
