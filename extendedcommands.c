@@ -849,14 +849,14 @@ int show_partition_menu()
 
     for (i = 0; i < num_volumes; i++) {
         Volume* v = get_device_volumes() + i;
-        char storage_name;
+        char storage_name[20];
         
-        if (strcmp(path, "/storage/sdcard0")) {
+        if (strcmp(v->mount_point, "/storage/sdcard0") == 0) {
             strcpy(storage_name, "Internal sdcard");
-        } else if (strcmp(path, "/storage/sdcard1")) {
+        } else if (strcmp(v->mount_point, "/storage/sdcard1") == 0) {
             strcpy(storage_name, "External sdcard");
         } else {
-            strcpy(storage_name, path);
+            strcpy(storage_name, v->mount_point);
         }
 
         if (fs_mgr_is_voldmanaged(v) && !vold_is_volume_available(v->mount_point)) {
@@ -1124,9 +1124,9 @@ void choose_default_backup_format() {
 static void add_nandroid_options_for_volume(char** menu, char* path, int offset)
 {
     char buf[100];
-    char storage_name;
+    char storage_name[20];
     
-    if (strcmp(path, "/storage/sdcard0")) {
+    if (strcmp(path, "/storage/sdcard0") == 0) {
         strcpy(storage_name, "Internal sdcard");
     } else {
         strcpy(storage_name, "External sdcard");
