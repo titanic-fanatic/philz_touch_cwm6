@@ -194,13 +194,14 @@ int show_install_update_menu()
                                 NULL
     };
 
+    // FIXED_TOP_INSTALL_ZIP_MENUS
     sprintf(buf, "Choose zip from %s", "Internal sdcard");
     install_menu_items[0] = strdup(buf);
 
     // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
         sprintf(buf, "Choose zip from %s", "External sdcard");
-        install_menu_items[INSTALL_ZIP_LAST_MENU + i] = strdup(buf);
+        install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i] = strdup(buf);
     }
 
     // FIXED_BOTTOM_INSTALL_ZIP_MENUS
