@@ -108,6 +108,27 @@ void write_recovery_version() {
     ignore_data_media_workaround(0);
 }
 
+static void write_last_install_path(const char* install_path) {
+    char path[PATH_MAX];
+    sprintf(path, "%s/clockworkmod/.last_install_path", get_primary_storage_path());
+    write_string_to_file(path, install_path);
+}
+
+const char* read_last_install_path() {
+    char path[PATH_MAX];
+    sprintf(path, "%s/clockworkmod/.last_install_path", get_primary_storage_path());
+
+    ensure_path_mounted(path);
+    FILE *f = fopen(path, "r");
+    if (f != NULL) {
+        fgets(path, PATH_MAX, f);
+        fclose(f);
+
+        return path;
+    }
+    return NULL;
+}
+
 void
 toggle_signature_check()
 {
@@ -150,25 +171,23 @@ int install_zip(const char* packagefilepath)
     return 0;
 }
 
-#define ITEM_CHOOSE_ZIP       0
-#define ITEM_APPLY_SIDELOAD   1
-#define ITEM_MULTI_FLASH      2
-#define ITEM_FREE_BROWSE      3
-#define ITEM_SIG_CHECK        4
-#define ITEM_CHOOSE_ZIP_INT   5
-// last menu item num
-#define INSTALL_ZIP_LAST_MENU 5
+// top fixed menu items, those before extra storage volumes
+#define FIXED_TOP_INSTALL_ZIP_MENUS 1
+// bottom fixed menu items, those after extra storage volumes
+#define FIXED_BOTTOM_INSTALL_ZIP_MENUS 5
+#define FIXED_INSTALL_ZIP_MENUS (FIXED_TOP_INSTALL_ZIP_MENUS + FIXED_BOTTOM_INSTALL_ZIP_MENUS)
 
 int show_install_update_menu()
 {
     char buf[100];
     int i = 0, chosen_item = 0;
-    static char* install_menu_items[MAX_NUM_MANAGED_VOLUMES + INSTALL_ZIP_LAST_MENU];
+    static char* install_menu_items[MAX_NUM_MANAGED_VOLUMES + FIXED_INSTALL_ZIP_MENUS + 1];
 
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
-    memset(install_menu_items, 0, MAX_NUM_MANAGED_VOLUMES + INSTALL_ZIP_LAST_MENU);
+
+    memset(install_menu_items, 0, MAX_NUM_MANAGED_VOLUMES + FIXED_INSTALL_ZIP_MENUS + 1);
 
     static const char* headers[] = {  "Install update from zip file",
                                 "",
@@ -178,44 +197,55 @@ int show_install_update_menu()
     sprintf(buf, "Choose zip from %s", "Internal sdcard");
     install_menu_items[0] = strdup(buf);
 
-    install_menu_items[1] = "Install zip from sideload";
-    install_menu_items[2] = "Multi-zip Installer";
-    install_menu_items[3] = "Setup Free Browse Mode";
-    install_menu_items[4] = "Toggle Signature Verification";
-
-    install_menu_items[INSTALL_ZIP_LAST_MENU + num_extra_volumes] = NULL;
-
+    // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
         sprintf(buf, "Choose zip from %s", "External sdcard");
         install_menu_items[INSTALL_ZIP_LAST_MENU + i] = strdup(buf);
     }
 
+    // FIXED_BOTTOM_INSTALL_ZIP_MENUS
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes]     = "Choose zip from Last Folder";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 1] = "Install zip from sideload";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 2] = "Multi-zip Installer";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 3] = "Setup Free Browse Mode";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4] = "Toggle Signature Verification";
+
+    // extra NULL for GO_BACK
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5] = NULL;
+
     for (;;)
     {
         chosen_item = get_menu_selection(headers, install_menu_items, 0, 0);
-        switch (chosen_item)
-        {
-            case ITEM_SIG_CHECK:
-                toggle_signature_check();
-                break;
-            case ITEM_CHOOSE_ZIP:
+        if (chosen_item == 0) {
+            show_choose_zip_menu(primary_path);
+        }
+        else if (chosen_item >= FIXED_TOP_INSTALL_ZIP_MENUS &&
+                    chosen_item < FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes) {
+            show_choose_zip_menu(extra_paths[chosen_item - FIXED_TOP_INSTALL_ZIP_MENUS]);
+        }
+        else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes) {
+            char *last_path_used;
+            last_path_used = read_last_install_path();
+            if (last_path_used == NULL)
                 show_choose_zip_menu(primary_path);
-                break;
-            case ITEM_APPLY_SIDELOAD:
-                apply_from_adb();
-                break;
-            case ITEM_MULTI_FLASH:
-                show_multi_flash_menu();
-                break;
-            case ITEM_FREE_BROWSE:
-                set_custom_zip_path();
-                break;
-            default:
-                if (chosen_item >= ITEM_CHOOSE_ZIP_INT) {
-                    show_choose_zip_menu(extra_paths[chosen_item - INSTALL_ZIP_LAST_MENU]);
-                } else {
-                    goto out;
-                }
+            else
+                show_choose_zip_menu(last_path_used);
+        }
+        else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 1) {
+            apply_from_adb();
+        }
+        else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 2) {
+            show_multi_flash_menu();
+        }
+        else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 3) {
+            set_custom_zip_path();
+        }
+        else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4) {
+            toggle_signature_check();
+        }
+        else {
+            // GO_BACK or REFRESH (chosen_item < 0)
+            goto out;
         }
     }
 out:
@@ -223,7 +253,7 @@ out:
     free(install_menu_items[0]);
     if (extra_paths != NULL) {
         for (i = 0; i < num_extra_volumes; i++)
-            free(install_menu_items[INSTALL_ZIP_LAST_MENU + i]);
+            free(install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i]);
     }
     return chosen_item;
 }
@@ -470,8 +500,11 @@ void show_choose_zip_menu(const char *mount_point)
     static char* confirm_install  = "Confirm install?";
     static char confirm[PATH_MAX];
     sprintf(confirm, "Yes - Install %s", basename(file));
-    if (confirm_selection(confirm_install, confirm))
+
+    if (confirm_selection(confirm_install, confirm)) {
         install_zip(file);
+        write_last_install_path(dirname(file));
+    }
 }
 
 void show_nandroid_restore_menu(const char* path)
