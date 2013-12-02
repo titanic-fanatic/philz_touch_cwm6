@@ -37,6 +37,7 @@
 
 #include "extendedcommands.h"
 #include "advanced_functions.h"
+#include "recovery_settings.h"
 #include "nandroid.h"
 #include "mounts.h"
 
@@ -45,6 +46,8 @@
 
 #ifdef RECOVERY_NEED_SELINUX_FIX
 #include <selinux/selinux.h>
+#include <selinux/label.h>
+#include <selinux/android.h>
 #endif
 
 #ifdef PHILZ_TOUCH_RECOVERY
@@ -52,7 +55,10 @@
 #endif
 
 // time in msec when nandroid job starts: used for dim timeout and total backup time
-static long nandroid_start_msec;
+static long long nandroid_start_msec = 0;
+
+// last time we updated size progress during backup job
+static long long last_size_update = 0;
 
 void nandroid_generate_timestamp_path(char* backup_path)
 {
@@ -145,7 +151,7 @@ static void compute_directory_stats(const char* directory)
     }
 }
 
-static long last_size_update = 0;
+// size progress update during backup jobs
 static void update_size_progress(const char* Path) {
     if (!show_nandroid_size_progress || Backup_Size == 0)
         return;
@@ -301,8 +307,10 @@ static void refresh_default_backup_handler() {
         strcpy(fmt, forced_backup_format);
     }
     else {
-        ensure_path_mounted(get_primary_storage_path());
-        FILE* f = fopen(NANDROID_BACKUP_FORMAT_FILE, "r");
+        char path[PATH_MAX];
+        sprintf(path, "%s/%s", get_primary_storage_path(), NANDROID_BACKUP_FORMAT_FILE);
+        ensure_path_mounted(path);
+        FILE* f = fopen(path, "r");
         if (NULL == f) {
             default_backup_handler = tar_compress_wrapper;
             return;
@@ -369,8 +377,9 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
     strcpy(name, basename(mount_point));
 
     struct stat file_info;
-    ensure_path_mounted(get_primary_storage_path());
-    int callback = stat("/sdcard/clockworkmod/.hidenandroidprogress", &file_info) != 0;
+    sprintf(tmp, "%s/%s", get_primary_storage_path(), NANDROID_HIDE_PROGRESS_FILE);
+    ensure_path_mounted(tmp);
+    int callback = stat(tmp, &file_info) != 0;
 
     ui_print("\n>> Backing up %s...\n", mount_point);
     if (0 != (ret = ensure_path_mounted(mount_point) != 0)) {
@@ -409,20 +418,24 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
         }
         ret = backup_handler(mount_point, tmp, callback);
     }
+
 #ifdef RECOVERY_NEED_SELINUX_FIX
-    if (file_found("/sdcard/clockworkmod/.nandroid_secontext") && 0 == ret && 0 != strcmp(backup_path, "-"))
+    sprintf(tmp, "%s/%s", get_primary_storage_path(), NANDROID_IGNORE_SELINUX_FILE);
+    ensure_path_mounted(tmp);
+    if (0 != ret || strcmp(backup_path, "-") == 0 || file_found(tmp)) {
+        LOGI("skipping selinux context!\n");
+    }
+    else if (0 == strcmp(mount_point, "/data") ||
+                0 == strcmp(mount_point, "/system") ||
+                0 == strcmp(mount_point, "/cache"))
     {
-        if (0 == strcmp(mount_point, "/data") || 0 == strcmp(mount_point, "/system") || 0 == strcmp(mount_point, "/cache"))
-        {
             ui_print("backing up selinux context...\n");
             sprintf(tmp, "%s/%s.context", backup_path, name);
             if (bakupcon_to_file(mount_point, tmp) < 0)
                 LOGE("backup selinux context error!\n");
             else
                 ui_print("backup selinux context completed.\n");
-        }
-    } else
-        LOGI("skipping selinux context!\n");
+    }
 #endif
     if (umount_when_finished) {
         ensure_path_unmounted(mount_point);
@@ -506,11 +519,19 @@ int nandroid_backup(const char* backup_path)
     char tmp[PATH_MAX];
     ensure_directory(backup_path);
 
-    if (backup_boot && 0 != (ret = nandroid_backup_partition(backup_path, "/boot")))
+    if (backup_boot && volume_for_path(BOOT_PARTITION_MOUNT_POINT) != NULL &&
+            0 != (ret = nandroid_backup_partition(backup_path, BOOT_PARTITION_MOUNT_POINT)))
         return ret;
 
-    if (backup_recovery && 0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
+    if (backup_recovery && volume_for_path("/recovery") != NULL &&
+            0 != (ret = nandroid_backup_partition(backup_path, "/recovery")))
         return ret;
+
+#ifdef BOARD_USE_MTK_LAYOUT
+    if ((backup_boot || backup_recovery) && volume_for_path("/uboot") != NULL &&
+            0 != (ret = nandroid_backup_partition(backup_path, "/uboot")))
+        return ret;
+#endif
 
     Volume *vol = volume_for_path("/wimax");
     if (backup_wimax && vol != NULL && 0 == statfs(vol->blk_device, &s))
@@ -922,8 +943,10 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
 
     ensure_directory(mount_point);
 
-    ensure_path_mounted(get_primary_storage_path());
-    int callback = stat("/sdcard/clockworkmod/.hidenandroidprogress", &file_info) != 0;
+    char path[PATH_MAX];
+    sprintf(path, "%s/%s", get_primary_storage_path(), NANDROID_HIDE_PROGRESS_FILE);
+    ensure_path_mounted(path);
+    int callback = stat(path, &file_info) != 0;
 
     ui_print("Restoring %s...\n", name);
     if (backup_filesystem == NULL) {
@@ -966,25 +989,29 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
             return ret;
         }
     }
+
 #ifdef RECOVERY_NEED_SELINUX_FIX
-    if (file_found("/sdcard/clockworkmod/.nandroid_secontext") && 0 != strcmp(backup_path, "-"))
-    {
-        if (0 == strcmp(mount_point, "/data") || 0 == strcmp(mount_point, "/system") || 0 == strcmp(mount_point, "/cache"))
+    sprintf(tmp, "%s/%s", get_primary_storage_path(), NANDROID_IGNORE_SELINUX_FILE);
+    ensure_path_mounted(tmp);
+    if (strcmp(backup_path, "-") == 0 || file_found(tmp)) {
+        LOGE("skipping restore of selinux context\n");
+    }
+    else if (0 == strcmp(mount_point, "/data") ||
+                0 == strcmp(mount_point, "/system") ||
+                0 == strcmp(mount_point, "/cache"))
         {
             ui_print("restoring selinux context...\n");
             name = basename(mount_point);
             sprintf(tmp, "%s/%s.context", backup_path, name);
             if ((ret = restorecon_from_file(tmp)) < 0) {
                 ui_print("restorecon from %s.context error, trying regular restorecon.\n", name);
-                if ((ret = restorecon_recursive(mount_point)) < 0) {
+                if ((ret = restorecon_recursive(mount_point, "/data/media/")) < 0) {
                     LOGE("Restorecon %s error!\n", mount_point); 
                     return ret;
                 }
             }
             ui_print("restore selinux context completed.\n");
         }
-    } else
-        LOGE("skipping restore of selinux context\n");
 #endif
     if (umount_when_finished) {
         ensure_path_unmounted(mount_point);
@@ -1063,13 +1090,21 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
 
     int ret;
 
-    if (restore_boot && NULL != volume_for_path("/boot") && 0 != (ret = nandroid_restore_partition(backup_path, "/boot")))
+    if (restore_boot && volume_for_path(BOOT_PARTITION_MOUNT_POINT) != NULL &&
+            0 != (ret = nandroid_restore_partition(backup_path, BOOT_PARTITION_MOUNT_POINT)))
         return ret;
 
     if (is_custom_backup) {
-        if (backup_recovery && 0 != (ret = nandroid_restore_partition(backup_path, "/recovery")))
+        if (backup_recovery && volume_for_path("/recovery") != NULL &&
+                0 != (ret = nandroid_restore_partition(backup_path, "/recovery")))
             return ret;
     }
+
+#ifdef BOARD_USE_MTK_LAYOUT
+    if (restore_boot && volume_for_path("/uboot") != NULL &&
+            0 != (ret = nandroid_restore_partition(backup_path, "/uboot")))
+        return ret;
+#endif
 
     struct statfs s;
     Volume *vol = volume_for_path("/wimax");
@@ -1310,6 +1345,8 @@ int nandroid_main(int argc, char** argv)
 }
 
 #ifdef RECOVERY_NEED_SELINUX_FIX
+static int nochange;
+static int verbose;
 int bakupcon_to_file(const char *pathname, const char *filename)
 {
     int ret = 0;
@@ -1352,8 +1389,8 @@ int bakupcon_to_file(const char *pathname, const char *filename)
         if (asprintf(&entryname, "%s/%s", pathname, entry->d_name) == -1)
             continue;
         if ((is_data_media() && (strncmp(entryname, "/data/media/", 12) == 0)) ||
-                strncmp(entryname, "/data/data/com.google.android.music/files", 41) == 0 )
-			continue;
+                strncmp(entryname, "/data/data/com.google.android.music/files/", 42) == 0 )
+            continue;
 
         bakupcon_to_file(entryname, filename);
         free(entryname);
@@ -1393,7 +1430,7 @@ int restorecon_from_file(const char *filename)
     return ret;
 }
 
-int restorecon_recursive(const char *pathname)
+int restorecon_recursive(const char *pathname, const char *exclude)
 {
     int ret = 0;
     struct stat sb;
@@ -1401,13 +1438,17 @@ int restorecon_recursive(const char *pathname)
         LOGW("restorecon: %s not found\n", pathname);
         return -1;
     }
-
+    if (exclude) {
+        int eclen = strlen(exclude);
+        if (strncmp(pathname, exclude, strlen(exclude)) == 0)
+            return 0;
+    }
     if (selinux_android_restorecon(pathname) < 0) {
         LOGW("restorecon: error restoring %s context\n", pathname);
         ret = 1;
     }
 
-    //skip symlink
+    // skip symlink dir
     if (S_ISLNK(sb.st_mode)) return 0;
 
     DIR *dir = opendir(pathname);
@@ -1423,11 +1464,8 @@ int restorecon_recursive(const char *pathname)
             continue;
         if (asprintf(&entryname, "%s/%s", pathname, entry->d_name) == -1)
             continue;
-        if ((is_data_media() && (strncmp(entryname, "/data/media/", 12) == 0)) ||
-                strncmp(entryname, "/data/data/com.google.android.music/files", 41) == 0 )
-			continue;
 
-        restorecon_recursive(entryname);
+        restorecon_recursive(entryname, exclude);
         free(entryname);
     }
 

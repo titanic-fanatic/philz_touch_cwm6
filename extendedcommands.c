@@ -33,6 +33,7 @@
 
 #include "extendedcommands.h"
 #include "advanced_functions.h"
+#include "recovery_settings.h"
 #include "nandroid.h"
 #include "mounts.h"
 #include "flashutils/flashutils.h"
@@ -100,9 +101,9 @@ void write_string_to_file(const char* filename, const char* string) {
 
 void write_recovery_version() {
     char path[PATH_MAX];
-    sprintf(path, "%s/clockworkmod/.recovery_version", get_primary_storage_path());
-    write_string_to_file(path,EXPAND(RECOVERY_VERSION) "\n" EXPAND(TARGET_DEVICE));
-    // force unmount /data as we call this on recovery start
+    sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_VERSION_FILE);
+    write_string_to_file(path, EXPAND(RECOVERY_VERSION) "\n" EXPAND(TARGET_DEVICE));
+    // force unmount /data as we call this on recovery exit
     ignore_data_media_workaround(1);
     ensure_path_unmounted(path);
     ignore_data_media_workaround(0);
@@ -110,13 +111,13 @@ void write_recovery_version() {
 
 static void write_last_install_path(const char* install_path) {
     char path[PATH_MAX];
-    sprintf(path, "%s/clockworkmod/.last_install_path", get_primary_storage_path());
+    sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_LAST_INSTALL_FILE);
     write_string_to_file(path, install_path);
 }
 
 const char* read_last_install_path() {
     char path[PATH_MAX];
-    sprintf(path, "%s/clockworkmod/.last_install_path", get_primary_storage_path());
+    sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_LAST_INSTALL_FILE);
 
     ensure_path_mounted(path);
     FILE *f = fopen(path, "r");
@@ -605,15 +606,22 @@ void show_mount_usb_storage_menu()
 
 int confirm_selection(const char* title, const char* confirm)
 {
+    char path[PATH_MAX];
     struct stat info;
     int ret = 0;
 
-    if (0 == stat("/sdcard/clockworkmod/.no_confirm", &info))
+    sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_NO_CONFIRM_FILE);
+    ensure_path_mounted(path);
+    if (0 == stat(path, &info))
         return 1;
 
+    int many_confirm;
     char* confirm_str = strdup(confirm);
     const char* confirm_headers[]  = {  title, "  THIS CAN NOT BE UNDONE.", "", NULL };
-    int many_confirm = 0 == stat("/sdcard/clockworkmod/.many_confirm", &info);
+    
+    sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_MANY_CONFIRM_FILE);
+    ensure_path_mounted(path);    
+    many_confirm = 0 == stat(path, &info);
 
     if (many_confirm) {
         char* items[] = { "No",
@@ -1144,18 +1152,20 @@ void choose_default_backup_format() {
         list = list_tar_default;
     }
 
+    char path[PATH_MAX];
+    sprintf(path, "%s/%s", get_primary_storage_path(), NANDROID_BACKUP_FORMAT_FILE);
     int chosen_item = get_menu_selection(headers, list, 0, 0);
     switch (chosen_item) {
         case 0:
-            write_string_to_file(NANDROID_BACKUP_FORMAT_FILE, "tar");
+            write_string_to_file(path, "tar");
             ui_print("Default backup format set to tar.\n");
             break;
         case 1:
-            write_string_to_file(NANDROID_BACKUP_FORMAT_FILE, "dup");
+            write_string_to_file(path, "dup");
             ui_print("Default backup format set to dedupe.\n");
             break;
         case 2:
-            write_string_to_file(NANDROID_BACKUP_FORMAT_FILE, "tgz");
+            write_string_to_file(path, "tgz");
             ui_print("Default backup format set to tar + gzip.\n");
             break;
     }
@@ -1314,10 +1324,10 @@ void format_sdcard(const char* volume) {
     if (is_data_media_volume_path(volume))
         return;
 
-    Volume *vol = volume_for_path(volume);
-    if (vol == NULL || strcmp(vol->fs_type, "auto") != 0)
+    Volume *v = volume_for_path(volume);
+    if (v == NULL || strcmp(v->fs_type, "auto") != 0)
         return;
-    if (!fs_mgr_is_voldmanaged(vol) && !can_partition(volume))
+    if (!fs_mgr_is_voldmanaged(v) && !can_partition(volume))
         return;
 
     char* headers[] = {"Format device:", volume, "", NULL };
@@ -1340,7 +1350,6 @@ void format_sdcard(const char* volume) {
     if (!confirm_selection( "Confirm formatting?", "Yes - Format device"))
         return;
 
-    Volume *v = volume_for_path(volume);
     if (ensure_path_unmounted(v->mount_point) != 0)
         return;
 
