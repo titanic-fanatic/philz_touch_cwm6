@@ -49,7 +49,7 @@ RECOVERY_NAME := CWM-based Recovery
 endif
 endif
 
-PHILZ_BUILD := 6.01.0
+PHILZ_BUILD := 6.01.5
 CWM_BASE_VERSION := v6.0.4.5
 LOCAL_CFLAGS += -DCWM_BASE_VERSION="$(CWM_BASE_VERSION)"
 RECOVERY_VERSION := $(RECOVERY_NAME) $(CWM_BASE_VERSION)
@@ -96,12 +96,6 @@ ifeq ($(BOARD_USE_CUSTOM_RECOVERY_FONT),)
   BOARD_USE_CUSTOM_RECOVERY_FONT := \"font_10x18.h\"
 endif
 
-ifeq ($(ENABLE_LOKI_RECOVERY),true)
-  LOCAL_CFLAGS += -DENABLE_LOKI
-  LOCAL_SRC_FILES += \
-    compact_loki.c
-endif
-
 BOARD_RECOVERY_CHAR_WIDTH := $(shell echo $(BOARD_USE_CUSTOM_RECOVERY_FONT) | cut -d _  -f 2 | cut -d . -f 1 | cut -d x -f 1)
 BOARD_RECOVERY_CHAR_HEIGHT := $(shell echo $(BOARD_USE_CUSTOM_RECOVERY_FONT) | cut -d _  -f 2 | cut -d . -f 1 | cut -d x -f 2)
 
@@ -125,6 +119,11 @@ LOCAL_C_INCLUDES += system/extras/ext4_utils system/core/fs_mgr/include external
 LOCAL_C_INCLUDES += system/vold
 
 LOCAL_STATIC_LIBRARIES += libext4_utils_static libz libsparse_static
+
+ifeq ($(ENABLE_LOKI_RECOVERY),true)
+  LOCAL_CFLAGS += -DENABLE_LOKI
+  LOCAL_STATIC_LIBRARIES += libloki_recovery
+endif
 
 # This binary is in the recovery ramdisk, which is otherwise a copy of root.
 # It gets copied there in config/Makefile.  LOCAL_MODULE_TAGS suppresses
@@ -263,6 +262,7 @@ include $(commands_recovery_local_path)/utilities/Android.mk
 include $(commands_recovery_local_path)/su/supersu/Android.mk
 include $(commands_recovery_local_path)/voldclient/Android.mk
 include $(commands_recovery_local_path)/device_images/Android.mk
+include $(commands_recovery_local_path)/loki/Android.mk
 
 ifneq ($(BOARD_USE_FB2PNG),false)
     include $(commands_recovery_local_path)/fb2png/Android.mk

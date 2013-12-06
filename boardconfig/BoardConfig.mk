@@ -85,17 +85,23 @@ else ifeq ($(TARGET_PRODUCT), cm_i9082)
     BOARD_HAS_LOW_RESOLUTION := true
     BRIGHTNESS_SYS_FILE := "/sys/class/backlight/panel/brightness"
 
-#Galaxy S Plus - i9001 (ariesve) (no cm device tree)
+#Galaxy S Plus - i9001 (ariesve)
 else ifeq ($(TARGET_PRODUCT), cm_ariesve)
-    TARGET_COMMON_NAME := Galaxy_I9001
-    BOARD_UMS_LUNFILE := "/sys/devices/virtual/android_usb/android0/f_mass_storage/lun%d/file"
+    TARGET_COMMON_NAME := Galaxy i9001
+    BOOTLOADER_CMD_ARG := "download"
+    BOARD_HAS_LOW_RESOLUTION := true
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+
+#Galaxy W I8150 (ancora)
+else ifeq ($(TARGET_PRODUCT), cm_ancora)
+    TARGET_COMMON_NAME := Galaxy W I8150
     BOOTLOADER_CMD_ARG := "download"
     BOARD_HAS_LOW_RESOLUTION := true
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
 #Galaxy S Blaze 4G - SGH T-769
 else ifeq ($(TARGET_PRODUCT), cm_t769)
-    TARGET_COMMON_NAME := SGH T769
+    TARGET_COMMON_NAME := SGH-T769
     BOOTLOADER_CMD_ARG := "download"
     BOARD_HAS_LOW_RESOLUTION := true
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -107,9 +113,15 @@ else ifeq ($(TARGET_PRODUCT), cm_i577)
     BOARD_HAS_LOW_RESOLUTION := true
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
-#Samsung Galaxy S2 HD LTE (SGH-I757M) - celoxhd
+#Galaxy S2 HD LTE (SGH-I757M) - celoxhd
 else ifeq ($(TARGET_PRODUCT), cm_celoxhd)
     TARGET_COMMON_NAME := SGH-I757M
+    BOOTLOADER_CMD_ARG := "download"
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+
+#Galaxy S2 Skyrocket i727 - skyrocket
+else ifeq ($(TARGET_PRODUCT), cm_skyrocket)
+    TARGET_COMMON_NAME := Skyrocket i727
     BOOTLOADER_CMD_ARG := "download"
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
@@ -316,8 +328,8 @@ else ifeq ($(TARGET_PRODUCT), cm_p930)
     TARGET_COMMON_NAME := LG Nitro HD
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
-#LG G2 AT&T (d800) - G2 TMO (d801) - G2 Int (d802)- G2 Verizon (vs980) - G2 Sprint (ls980)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_d800 cm_d801 cm_d802 cm_vs980 cm_ls980),)
+#LG G2 AT&T (d800) - G2 TMO (d801) - G2 Int (d802) - G2 CAN (d803) - G2 Verizon (vs980) - G2 Sprint (ls980)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_d800 cm_d801 cm_d802 cm_d803 cm_vs980 cm_ls980),)
     TARGET_COMMON_NAME := LG G2 ($(TARGET_PRODUCT))
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
