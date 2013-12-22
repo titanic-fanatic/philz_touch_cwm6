@@ -41,7 +41,7 @@ int copy_a_file(const char* file_in, const char* file_out);
 int show_custom_zip_menu();
 void set_custom_zip_path();
 
-// misc nandroid settings and functions
+// nandroid settings and functions
 void show_twrp_restore_menu(const char* backup_volume);
 void custom_backup_menu(const char* backup_volume);
 void custom_restore_menu(const char* backup_volume);
@@ -50,6 +50,40 @@ void get_cwm_backup_path(const char* backup_volume, char *backup_path);
 void misc_nandroid_menu();
 void get_rom_name(char *rom_name);
 void get_device_id(char *device_id); // twrp backup folder for device
+
+// custom backup and restore menu items
+enum {
+  LIST_ITEM_VALIDATE,
+  LIST_ITEM_REBOOT,
+  LIST_ITEM_BOOT,
+  LIST_ITEM_RECOVERY,
+  LIST_ITEM_SYSTEM,
+  LIST_ITEM_PRELOAD,
+  LIST_ITEM_DATA,
+  LIST_ITEM_ANDSEC,
+  LIST_ITEM_CACHE,
+  LIST_ITEM_SDEXT,
+  LIST_ITEM_MODEM,
+  LIST_ITEM_RADIO,
+  LIST_ITEM_EFS,
+  LIST_ITEM_MISC,
+  LIST_ITEM_DATAMEDIA,
+  LIST_ITEM_WIMAX,
+  LIST_ITEM_EXTRA_1,
+  LIST_ITEM_EXTRA_2,
+  LIST_ITEM_EXTRA_3,
+  LIST_ITEM_EXTRA_4,
+  LIST_ITEM_EXTRA_5
+};
+
+#ifndef EXTRA_PARTITIONS_PATH
+#define EXTRA_PARTITIONS_PATH   "/extra_part"
+#endif
+#define EXTRA_PARTITIONS_NUM    5
+struct extra_partitions_list {
+    char menu_label[64];
+    int backup_state;
+} extra_partition[EXTRA_PARTITIONS_NUM];
 
 // multi zip installer
 void show_multi_flash_menu();
