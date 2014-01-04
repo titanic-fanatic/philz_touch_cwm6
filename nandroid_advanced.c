@@ -23,7 +23,7 @@ int android_secure_ext = 0;
 int nandroid_add_preload = 0;
 int enable_md5sum = 1;
 int show_nandroid_size_progress = 0;
-int compression_value = TAR_GZ_FAST;
+int compression_value = TAR_GZ_MEDIUM;
 
 void finish_nandroid_job() {
     ui_print("Finalizing, please wait...\n");
@@ -798,16 +798,18 @@ int twrp_backup(const char* backup_path) {
 
 int twrp_tar_extract_wrapper(const char* popen_command, const char* backup_path, int callback) {
     char tmp[PATH_MAX];
+
     strcpy(tmp, popen_command);
+    set_perf_mode(1);
     FILE *fp = __popen(tmp, "r");
     if (fp == NULL) {
         ui_print("Unable to execute tar.\n");
+        set_perf_mode(0);
         return -1;
     }
 
     int nand_starts = 1;
     last_size_update = 0;
-    set_perf_mode(1);
     while (fgets(tmp, PATH_MAX, fp) != NULL) {
 #ifdef PHILZ_TOUCH_RECOVERY
         if (user_cancel_nandroid(&fp, NULL, 0, &nand_starts)) {
