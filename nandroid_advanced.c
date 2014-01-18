@@ -24,6 +24,7 @@ int nandroid_add_preload = 0;
 int enable_md5sum = 1;
 int show_nandroid_size_progress = 0;
 int compression_value = TAR_GZ_MEDIUM;
+int nand_prompt_on_low_space = 1;
 
 void finish_nandroid_job() {
     ui_print("Finalizing, please wait...\n");
@@ -249,7 +250,8 @@ int check_backup_size(const char* backup_path) {
         ui_print(">> Unknown partitions size (%d):%s\n", ret, skipped_parts);
 
     if (free_percent < 3 || (default_backup_handler != dedupe_compress_wrapper && free_mb < backup_size_mb + 50)) {
-        if (!confirm_selection("Low free space! Continue anyway?", "Yes - Continue Nandroid Job"))
+        LOGW("Low space for backup!\n");
+        if (nand_prompt_on_low_space && !confirm_selection("Low free space! Continue anyway?", "Yes - Continue Nandroid Job"))
             return -1;
     }
 
@@ -392,6 +394,7 @@ int dd_raw_restore_handler(const char* backup_file_image, const char* root)
         }
         i++;
     }
+
     if (raw_image_format[i] == NULL) {
         LOGE("invalid image file! Failed to restore %s to %s\n", filename, root);
         return -1;
@@ -604,6 +607,7 @@ int twrp_backup_wrapper(const char* backup_path, const char* backup_file_image, 
         LOGE("Error generating file list!\n");
         return -1;
     }
+
     struct stat st;
     if (0 != stat("/tmp/list/filelist000", &st)) {
         sprintf(tmp, "%s", backup_path);

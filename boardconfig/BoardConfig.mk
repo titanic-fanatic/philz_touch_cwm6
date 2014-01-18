@@ -37,6 +37,11 @@
 #                               in recovery.fstab, we must put: /dev/block/xxx  /efs1   ext4    options
 #                                                               /dev/block/xxx  /efs2   ext4    options
 #                               up to 5 partitions:             /dev/block/xxx  /efs5   ext4    options
+#   - TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
+#                               will force using ro.product.model as device id if available
+#                               you still need to enable a LOCAL_CFLAGS if defined
+#   - BOARD_HAS_SLOW_STORAGE := true
+#                               default setting will disable size progress info during backup/restore
 
 
 
@@ -180,8 +185,9 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_i9300 cm_i9305),)
     BOARD_USE_FB2PNG := true
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Samsung S3 T-Mobile SGH-T999 (d2tmo), SPH-L710 (d2spr), SPH-L710 (d2att), SGH-I535 (d2vzw) // Galaxy S Relay 4G - SGH-T699 (apexqtmo) // Galaxy Express AT&T (expressatt)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_d2tmo cm_d2spr cm_d2att cm_d2vzw cm_apexqtmo cm_expressatt),)
+#Samsung S3 T-Mobile SGH-T999 (d2tmo), SPH-L710 (d2spr), SPH-L710 (d2att), SGH-I535 (d2vzw) // US Cellular CH-R530U (d2usc)
+# Galaxy S Relay 4G - SGH-T699 (apexqtmo) // Galaxy Express AT&T (expressatt)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_d2tmo cm_d2spr cm_d2att cm_d2vzw cm_d2usc cm_apexqtmo cm_expressatt),)
     TARGET_COMMON_NAME := $(TARGET_PRODUCT)
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
@@ -234,8 +240,8 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_n5100 cm_n5110),)
     BOARD_USE_FB2PNG := true
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Galaxy Note 10.1 GSM (n8000) and classic (n8013)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_n8000 cm_n8013),)
+#Galaxy Note 10.1 GSM (n8000), Wifi (n8013), LTE (n8020)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_n8000 cm_n8013 cm_n8020),)
     TARGET_COMMON_NAME := Galaxy Note 10.1 ($(TARGET_PRODUCT))
     BOARD_UMS_LUNFILE := "/sys/devices/virtual/android_usb/android0/f_mass_storage/lun0/file"
     BOOTLOADER_CMD_ARG := "download"
@@ -277,8 +283,8 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_jfltexx cm_jflteatt cm_jfltecan cm_jfl
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Galaxy S4 Mini LTE - i9195 (serranoltexx) // Galaxy S4 Mini 3G - i9190 (serrano3gxx)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_serranoltexx cm_serrano3gxx),)
+#Galaxy S4 Mini: LTE - i9195 (serranoltexx) // 3G - i9190 (serrano3gxx) // Dual Sim (serranodsub)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_serranoltexx cm_serrano3gxx cm_serranodsub),)
     TARGET_COMMON_NAME := Galaxy S4 Mini ($(TARGET_PRODUCT))
     BOARD_UMS_LUNFILE := "/sys/devices/virtual/android_usb/android0/f_mass_storage/lun0/file"
     BOOTLOADER_CMD_ARG := "download"
@@ -287,16 +293,16 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_serranoltexx cm_serrano3gxx),)
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Galaxy Tab 2 - p3100
-else ifeq ($(TARGET_PRODUCT), cm_p3100)
-    TARGET_COMMON_NAME := p3100
+#Galaxy Tab 2 - p3100, p3110
+else ifneq ($(filter $(TARGET_PRODUCT),cm_p3100 cm_p3110),)
+    TARGET_COMMON_NAME := Galaxy Tab 2 ($(TARGET_PRODUCT))
     BOARD_UMS_LUNFILE := "/sys/devices/virtual/android_usb/android0/f_mass_storage/lun0/file"
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
     BRIGHTNESS_SYS_FILE := "/sys/class/backlight/panel/brightness"
     BOARD_USE_FB2PNG := true
-    RECOVERY_TOUCHSCREEN_SWAP_XY := true
-    RECOVERY_TOUCHSCREEN_FLIP_Y := true
+    #RECOVERY_TOUCHSCREEN_SWAP_XY := true
+    #RECOVERY_TOUCHSCREEN_FLIP_Y := true
     BOARD_USE_B_SLOT_PROTOCOL := true
 
 #Galaxy Tab 2 - p5100 / p5110
@@ -500,6 +506,11 @@ else ifeq ($(TARGET_PRODUCT), cm_mb886)
     TARGET_COMMON_NAME := Atrix HD
     BRIGHTNESS_SYS_FILE := "/sys/class/backlight/lcd-backlight/brightness"
 
+#Motorola Moto X: TMO (xt1053), US Cellular (xt1055), Sprint (xt1056), GSM (xt1058), VZW (xt1060)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_xt1053 cm_xt1055 cm_xt1056 cm_xt1058 cm_xt1060),)
+    TARGET_COMMON_NAME := Moto X ($(TARGET_PRODUCT))
+    BRIGHTNESS_SYS_FILE := "/sys/class/backlight/lcd-backlight/brightness"
+
 #Oppo Find5 (find5)
 else ifeq ($(TARGET_PRODUCT), cm_find5)
     TARGET_COMMON_NAME := Oppo Find5
@@ -521,6 +532,15 @@ else ifeq ($(TARGET_PRODUCT), cm_togari)
     TARGET_COMMON_NAME := Xperia ZU
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/wled:backlight/brightness"
 
+#Sony Xperia SP (huashan)
+else ifeq ($(TARGET_PRODUCT), cm_huashan)
+    TARGET_COMMON_NAME := Xperia SP
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight1/brightness"
+
+#Sony Xperia T (mint)
+else ifeq ($(TARGET_PRODUCT), cm_mint)
+    TARGET_COMMON_NAME := Xperia T
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight_1/brightness"
 
 endif
 #---- end device specific config
