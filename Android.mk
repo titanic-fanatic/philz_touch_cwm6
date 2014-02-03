@@ -51,8 +51,8 @@ RECOVERY_NAME := CWM-based Recovery
 endif
 endif
 
-PHILZ_BUILD := 6.10.0
-CWM_BASE_VERSION := v6.0.4.6
+PHILZ_BUILD := 6.12.8
+CWM_BASE_VERSION := v6.0.4.7
 LOCAL_CFLAGS += -DCWM_BASE_VERSION="$(CWM_BASE_VERSION)"
 RECOVERY_VERSION := $(RECOVERY_NAME) $(CWM_BASE_VERSION)
 
@@ -222,11 +222,11 @@ LOCAL_SRC_FILES := raw-backup.sh
 include $(BUILD_PREBUILT)
 
 include $(CLEAR_VARS)
-LOCAL_MODULE := ors-mount.sh
+LOCAL_MODULE := bootscripts_mnt.sh
 LOCAL_MODULE_TAGS := optional
 LOCAL_MODULE_CLASS := RECOVERY_EXECUTABLES
 LOCAL_MODULE_PATH := $(TARGET_RECOVERY_ROOT_OUT)/sbin
-LOCAL_SRC_FILES := ors-mount.sh
+LOCAL_SRC_FILES := bootscripts_mnt.sh
 include $(BUILD_PREBUILT)
 #end philz external scripts
 

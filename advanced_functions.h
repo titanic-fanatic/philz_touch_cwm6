@@ -6,7 +6,7 @@ void ui_print_custom_logtail(const char* filename, int nb_lines);
 int read_config_file(const char* config_file, const char *key, char *value, const char *value_def);
 int write_config_file(const char* config_file, const char* key, const char* value);
 void show_philz_settings_menu();
-void refresh_recovery_settings(int unmount);
+void refresh_recovery_settings(int on_start);
 void wipe_data_menu();
 extern int no_files_found;
 
@@ -21,8 +21,9 @@ int Find_Partition_Size(const char* Path);
 int erase_volume(const char *volume);
 void wipe_data(int confirm);
 extern int no_wipe_confirm;
-extern int check_for_script_file(const char* ors_boot_script);
-extern int run_ors_script(const char* ors_script);
+int check_boot_script_file(const char* boot_script);
+int run_ors_boot_script();
+static int run_ors_script(const char* ors_script);
 
 // general system functions
 long long timenow_usec(void);

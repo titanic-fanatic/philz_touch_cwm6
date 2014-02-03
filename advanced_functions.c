@@ -63,6 +63,7 @@
 
 int check_root_and_recovery = 1;
 static int auto_restore_settings = 0;
+static int ignore_android_secure = 0;
 
 static unsigned long long gettime() {
     struct timespec ts;
@@ -740,23 +741,35 @@ void show_multi_flash_menu() {
 /*  Enhanced by PhilZ @xda               */
 /*****************************************/
 
-#define SCRIPT_COMMAND_SIZE 512
-static int ignore_android_secure = 0;
-
-int check_for_script_file(const char* ors_boot_script) {
-    ensure_path_mounted(ors_boot_script);
-    struct stat s;
-    if (0 != stat(ors_boot_script, &s))
+int check_boot_script_file(const char* boot_script) {
+    if (!file_found(boot_script))
         return -1;
 
+    LOGI("Script file found: '%s'\n", boot_script);
     char tmp[PATH_MAX];
-    LOGI("Script file found: '%s'\n", ors_boot_script);
-    __system("/sbin/ors-mount.sh");
-    // move script file to /tmp
-    sprintf(tmp, "mv %s /tmp", ors_boot_script);
-    __system(tmp);
+    sprintf(tmp, "/sbin/bootscripts_mnt.sh %s %s", boot_script, get_primary_storage_path());
+    if (0 != __system(tmp)) {
+        // non fatal error
+        LOGE("failed to fix boot script (%s)\n", strerror(errno));
+        LOGE("run without fixing...\n");
+    }
 
     return 0;
+}
+
+int run_ors_boot_script() {
+    int ret = 0;
+    char tmp[PATH_MAX];
+
+    if (!file_found(ORS_BOOT_SCRIPT_FILE))
+        return -1;
+
+    sprintf(tmp, "cp -f %s /tmp/%s", ORS_BOOT_SCRIPT_FILE, basename(ORS_BOOT_SCRIPT_FILE));
+    __system(tmp);
+    remove(ORS_BOOT_SCRIPT_FILE);
+
+    sprintf(tmp, "/tmp/%s", basename(ORS_BOOT_SCRIPT_FILE));
+    return run_ors_script(tmp);
 }
 
 // sets the default backup volume for ors backup command
@@ -805,8 +818,11 @@ static void choose_ors_volume() {
     }
 }
 
+
 // Parse backup options in ors
 // Stock CWM as of v6.x, doesn't support backup options
+#define SCRIPT_COMMAND_SIZE 512
+
 static int ors_backup_command(const char* backup_path, const char* options) {
     is_custom_backup = 1;
     int old_enable_md5sum = enable_md5sum;
@@ -892,7 +908,7 @@ static int ors_backup_command(const char* backup_path, const char* options) {
 
 // run ors script code
 // this can be started on boot or manually for custom ors
-int run_ors_script(const char* ors_script) {
+static int run_ors_script(const char* ors_script) {
     FILE *fp = fopen(ors_script, "r");
     int ret_val = 0, cindex, line_len, i, remove_nl;
     char script_line[SCRIPT_COMMAND_SIZE], command[SCRIPT_COMMAND_SIZE],
@@ -1457,12 +1473,14 @@ void misc_nandroid_menu()
         fmt = nandroid_get_default_backup_format();
         if (fmt == NANDROID_BACKUP_FORMAT_TGZ) {
             if (compression_value == TAR_GZ_FAST)
-                ui_format_gui_menu(item_compress, "Compression", "Fast");
+                ui_format_gui_menu(item_compress, "Compression", "fast");
             else if (compression_value == TAR_GZ_LOW)
-                ui_format_gui_menu(item_compress, "Compression", "Low");
+                ui_format_gui_menu(item_compress, "Compression", "low");
+            else if (compression_value == TAR_GZ_MEDIUM)
+                ui_format_gui_menu(item_compress, "Compression", "medium");
             else if (compression_value == TAR_GZ_HIGH)
-                ui_format_gui_menu(item_compress, "Compression", "High");
-            else ui_format_gui_menu(item_compress, "Compression", "Med");
+                ui_format_gui_menu(item_compress, "Compression", "high");
+            else ui_format_gui_menu(item_compress, "Compression", TAR_GZ_DEFAULT_STR);
         } else
             ui_format_gui_menu(item_compress, "Compression", "No");
 
@@ -1530,7 +1548,9 @@ void misc_nandroid_menu()
                         // switch pigz -[ fast(1), low(3), medium(5), high(7) ] compression level
                         char value[8];
                         compression_value += 2;
-                        if (compression_value == TAR_GZ_LOW)
+                        if (compression_value == TAR_GZ_FAST)
+                            sprintf(value, "fast");
+                        else if (compression_value == TAR_GZ_LOW)
                             sprintf(value, "low");
                         else if (compression_value == TAR_GZ_MEDIUM)
                             sprintf(value, "medium");
@@ -3079,15 +3099,17 @@ void check_loki_support_action() {
 // refresh nandroid compression
 static void refresh_nandroid_compression() {
     char value[PROPERTY_VALUE_MAX];
-    read_config_file(PHILZ_SETTINGS_FILE, "nandroid_compression", value, "medium");
+    read_config_file(PHILZ_SETTINGS_FILE, "nandroid_compression", value, TAR_GZ_DEFAULT_STR);
     if (strcmp(value, "fast") == 0)
         compression_value = TAR_GZ_FAST;
     else if (strcmp(value, "low") == 0)
         compression_value = TAR_GZ_LOW;
+    else if (strcmp(value, "medium") == 0)
+        compression_value = TAR_GZ_MEDIUM;
     else if (strcmp(value, "high") == 0)
         compression_value = TAR_GZ_HIGH;
     else
-        compression_value = TAR_GZ_MEDIUM;
+        compression_value = TAR_GZ_DEFAULT;
 }
 
 // check user setting for backup mode (TWRP vs CWM)
@@ -3157,7 +3179,7 @@ static void initialize_extra_partitions_state() {
     }
 }
 
-void refresh_recovery_settings(int unmount) {
+void refresh_recovery_settings(int on_start) {
     check_auto_restore_settings();
     check_root_and_recovery_settings();
     refresh_nandroid_compression();
@@ -3171,10 +3193,10 @@ void refresh_recovery_settings(int unmount) {
     check_loki_support_action();
 #endif
 #ifdef PHILZ_TOUCH_RECOVERY
-    refresh_touch_gui_settings();
+    refresh_touch_gui_settings(on_start);
 #endif
-    // unmount settings file if requested: only on recovery start
-    if (unmount) {
+    // unmount settings file on recovery start
+    if (on_start) {
         ignore_data_media_workaround(1);
         ensure_path_unmounted(PHILZ_SETTINGS_FILE);
         ignore_data_media_workaround(0);
