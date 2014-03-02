@@ -218,33 +218,13 @@ int show_install_update_menu() {
 
     static const char* headers[] = { "Install update from zip file", "", NULL };
 
-    #ifdef TARGET_CUSTOM_TAGS
-        char* ctags = strdup(TARGET_CUSTOM_TAGS);
-    #endif
-
     // FIXED_TOP_INSTALL_ZIP_MENUS
-    #ifdef TARGET_CUSTOM_TAGS
-        if (ctags != NULL) {
-            sprintf(buf, "Choose zip from %s", strsep(&ctags, ","));
-        } else {
-            sprintf(buf, "Choose zip from %s", primary_path);
-        }
-    #else
-        sprintf(buf, "Choose zip from %s", primary_path);
-    #endif
+    sprintf(buf, "Choose zip from %s", "Internal sdcard");
     install_menu_items[0] = strdup(buf);
 
     // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
-        #ifdef TARGET_CUSTOM_TAGS
-            if (ctags != NULL) {
-                sprintf(buf, "Choose zip from %s", strsep(&ctags, ","));
-            } else {
-                sprintf(buf, "Choose zip from %s", extra_paths[i]);
-            }
-        #else
-            sprintf(buf, "Choose zip from %s", extra_paths[i]);
-        #endif
+        sprintf(buf, "Choose zip from %s", "External sdcard");
         install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i] = strdup(buf);
     }
 
@@ -944,11 +924,6 @@ int show_partition_menu() {
     int num_volumes;
     int chosen_item = 0;
 
-    #ifdef TARGET_CUSTOM_TAGS
-        char* ctags = strdup(TARGET_CUSTOM_TAGS);
-        int skipdatamedia = 0;
-    #endif
-
     num_volumes = get_num_volumes();
 
     if (!num_volumes)
@@ -978,22 +953,14 @@ int show_partition_menu() {
 
         MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
 
-        char* displayname = v->mount_point;
-        if (fs_mgr_is_voldmanaged(v)) {
-            if(is_data_media() && skipdatamedia == 0) {
-                displayname = strsep(&ctags, ",");
-                skipdatamedia = 1;
-            }
-            displayname = strsep(&ctags, ",");
-        }
         if (mfm.can_mount) {
-            sprintf(mount_menu[mountable_volumes].mount, "mount %s", displayname);
-            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", displayname);
+            sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
+            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
         if (mfm.can_format) {
-            sprintf(format_menu[formatable_volumes].txt, "format %s", displayname);
+            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
@@ -1273,34 +1240,14 @@ int show_nandroid_menu() {
     // + 1 for extra NULL entry
     static char* list[((MAX_NUM_MANAGED_VOLUMES + 1) * NANDROID_ACTIONS_NUM) + NANDROID_FIXED_ENTRIES + 1];
 
-    #ifdef TARGET_CUSTOM_TAGS
-        char* ctags = strdup(TARGET_CUSTOM_TAGS);
-    #endif
-
     // actions for primary_path
-    #ifdef TARGET_CUSTOM_TAGS
-        if (ctags != NULL) {
-            add_nandroid_options_for_volume(list, strsep(&ctags, ","), offset);
-        } else {
-            add_nandroid_options_for_volume(list, primary_path, offset);
-        }
-    #else
-        add_nandroid_options_for_volume(list, primary_path, offset);
-    #endif
+    add_nandroid_options_for_volume(list, primary_path, offset);
     offset += NANDROID_ACTIONS_NUM;
 
     // actions for voldmanaged volumes
     if (extra_paths != NULL) {
         for (i = 0; i < num_extra_volumes; i++) {
-            #ifdef TARGET_CUSTOM_TAGS
-                if (ctags != NULL) {
-                    add_nandroid_options_for_volume(list, strsep(&ctags, ","), offset);
-                } else {
-                    add_nandroid_options_for_volume(list, extra_paths[i], offset);
-                }
-            #else
-                add_nandroid_options_for_volume(list, extra_paths[i], offset);
-            #endif
+            add_nandroid_options_for_volume(list, extra_paths[i], offset);
             offset += NANDROID_ACTIONS_NUM;
         }
     }
@@ -1634,37 +1581,16 @@ int show_advanced_menu() {
 #endif
 
     char list_prefix[] = "Partition ";
-    #ifdef TARGET_CUSTOM_TAGS
-        char* ctags = strdup(TARGET_CUSTOM_TAGS);
-    #endif
     if (can_partition(primary_path)) {
-        #ifdef TARGET_CUSTOM_TAGS
-            if (ctags != NULL) {
-                sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
-            } else {
-                sprintf(buf, "%s%s", list_prefix, primary_path);
-            }
-        #else
-            sprintf(buf, "%s%s", list_prefix, primary_path);
-        #endif
+        sprintf(buf, "%s%s", list_prefix, primary_path);
         list[FIXED_ADVANCED_ENTRIES] = strdup(buf);
         j++;
-    } else {
-        strsep(&ctags, ",");
     }
 
     if (extra_paths != NULL) {
         for (i = 0; i < num_extra_volumes; i++) {
             if (can_partition(extra_paths[i])) {
-                #ifdef TARGET_CUSTOM_TAGS
-                    if (ctags != NULL) {
-                        sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
-                    } else {
-                        sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
-                    }
-                #else
-                    sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
-                #endif
+                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
                 list[FIXED_ADVANCED_ENTRIES + j] = strdup(buf);
                 j++;
             }
