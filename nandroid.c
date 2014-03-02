@@ -51,7 +51,8 @@
 #endif
 
 #ifdef PHILZ_TOUCH_RECOVERY
-#include "/root/Desktop/PhilZ_Touch/touch_source/philz_nandroid_gui.c"
+#include "libtouch_gui/nandroid_gui.h"
+#include "libtouch_gui/gui_settings.h"
 #endif
 
 // time in msec when nandroid job starts: used for dim timeout and total backup time
@@ -101,31 +102,36 @@ static void nandroid_callback(const char* filename) {
     ui_increment_frame();
 
     char size_progress[256] = "Size progress: N/A";
-    if (show_nandroid_size_progress && Backup_Size != 0) {
+    if (show_nandroid_size_progress.value && Backup_Size != 0) {
         sprintf(size_progress, "Done %llu/%lluMb - Free %lluMb",
                 (Used_Size - Before_Used_Size) / 1048576LLU, Backup_Size / 1048576LLU, Free_Size / 1048576LLU);
     }
     size_progress[ui_get_text_cols() - 1] = '\0';
 
 #ifdef PHILZ_TOUCH_RECOVERY
-    int color[] = {CYAN_BLUE_CODE};
-    ui_print_color(3, color);
+    ui_print_default_color(3);
 #endif
+
+    if (use_nandroid_simple_logging.value)
+        ui_set_log_stdout(0);
 
     // do not write size progress to log file
     ui_nolog_lines(1);
+
     // strlen(tmp) check avoids ui_nolog_lines() printing size progress to log on empty lines
     if (strlen(tmp) == 0)
         sprintf(tmp, " ");
     ui_nice_print("%s\n%s\n", tmp, size_progress);
     ui_nolog_lines(-1);
-    if (!ui_was_niced() && nandroid_files_total != 0)
-        ui_set_progress((float)nandroid_files_count / (float)nandroid_files_total);
-    if (!ui_was_niced())
+    if (!ui_was_niced()) {
+        if (nandroid_files_total != 0)
+            ui_set_progress((float)nandroid_files_count / (float)nandroid_files_total);
         ui_delete_line(2);
+    }
 #ifdef PHILZ_TOUCH_RECOVERY
     ui_print_color(0, 0);
 #endif
+    ui_set_log_stdout(1);
 }
 
 static void compute_directory_stats(const char* directory) {
@@ -139,7 +145,7 @@ static void compute_directory_stats(const char* directory) {
     nandroid_files_count = 0;
     nandroid_files_total = atoi(count_text);
 
-    if (!twrp_backup_mode) {
+    if (!twrp_backup_mode.value) {
         ui_reset_progress();
         ui_show_progress(1, 0);
     }
@@ -147,7 +153,7 @@ static void compute_directory_stats(const char* directory) {
 
 // size progress update during backup jobs
 static void update_size_progress(const char* Path) {
-    if (!show_nandroid_size_progress || Backup_Size == 0)
+    if (!show_nandroid_size_progress.value || Backup_Size == 0)
         return;
     // statfs every 5 sec interval maximum (some sdcards and phones cannot support previous 0.5 sec)
     if (last_size_update == 0 || (timenow_msec() - last_size_update) > 5000) {
@@ -227,7 +233,7 @@ static int tar_compress_wrapper(const char* backup_path, const char* backup_file
 
 static int tar_gzip_compress_wrapper(const char* backup_path, const char* backup_file_image, int callback) {
     char tmp[PATH_MAX];
-    sprintf(tmp, "cd $(dirname %s) ; touch %s.tar.gz ; (tar cv --exclude=data/data/com.google.android.music/files/* %s $(basename %s) | pigz -c -%d | split -a 1 -b 1000000000 /proc/self/fd/0 %s.tar.gz.) 2> /proc/self/fd/1 ; exit $?", backup_path, backup_file_image, strcmp(backup_path, "/data") == 0 && is_data_media() ? "--exclude 'media'" : "", backup_path, compression_value, backup_file_image);
+    sprintf(tmp, "cd $(dirname %s) ; touch %s.tar.gz ; (tar cv --exclude=data/data/com.google.android.music/files/* %s $(basename %s) | pigz -c -%d | split -a 1 -b 1000000000 /proc/self/fd/0 %s.tar.gz.) 2> /proc/self/fd/1 ; exit $?", backup_path, backup_file_image, strcmp(backup_path, "/data") == 0 && is_data_media() ? "--exclude 'media'" : "", backup_path, compression_value.value, backup_file_image);
 
     return do_tar_compress(tmp, callback, backup_file_image);
 }
@@ -360,8 +366,10 @@ static nandroid_backup_handler get_backup_handler(const char *backup_path) {
     if (override_yaffs2_wrapper && strlen(forced_backup_format) > 0)
         return default_backup_handler;
 
-    // cwr5, we prefer dedupe for everything except yaffs2
-    if (strcmp("yaffs2", mv->filesystem) == 0) {
+    // Disable tar backups of yaffs2 by default
+    char prefer_tar[PROPERTY_VALUE_MAX];
+    property_get("ro.cwm.prefer_tar", prefer_tar, "false");
+    if (strcmp("yaffs2", mv->filesystem) == 0 && strcmp("false", prefer_tar) == 0) {
         return mkyaffs2image_wrapper;
     }
 
@@ -392,7 +400,7 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
     if (v != NULL)
         mv = find_mounted_volume_by_mount_point(v->mount_point);
 
-    if (twrp_backup_mode) {
+    if (twrp_backup_mode.value) {
         if (strstr(name, "android_secure") != NULL)
             strcpy(name, "and-sec");
         if (mv == NULL || mv->filesystem == NULL)
@@ -429,7 +437,7 @@ int nandroid_backup_partition_extended(const char* backup_path, const char* moun
     {
             ui_print("backing up selinux context...\n");
             sprintf(tmp, "%s/%s.context", backup_path, name);
-            if (bakupcon_to_file(mount_point, tmp) < 0)
+            if (backupcon_to_file(mount_point, tmp) < 0)
                 LOGE("backup selinux context error!\n");
             else
                 ui_print("backup selinux context completed.\n");
@@ -465,7 +473,7 @@ int nandroid_backup_partition(const char* backup_path, const char* root) {
         const char* name = basename(root);
         if (strcmp(backup_path, "-") == 0)
             strcpy(tmp, "/proc/self/fd/1");
-        else if (twrp_backup_mode)
+        else if (twrp_backup_mode.value)
             sprintf(tmp, "%s/%s.%s.win", backup_path, name, vol->fs_type);
         else
             sprintf(tmp, "%s/%s.img", backup_path, name);
@@ -586,7 +594,7 @@ int nandroid_backup(const char* backup_path) {
                 ui_print("Failed to backup /preload!\n");
                 return ret;
             }
-        } else if (!is_custom_backup && nandroid_add_preload) {
+        } else if (!is_custom_backup && nandroid_add_preload.value) {
             if (0 != (ret = nandroid_backup_partition(backup_path, "/preload"))) {
                 ui_print("Failed to backup preload! Try to disable it.\n");
                 ui_print("Skipping /preload...\n");
@@ -638,7 +646,7 @@ int nandroid_backup(const char* backup_path) {
             return ret;
     }
 
-    if (enable_md5sum) {
+    if (enable_md5sum.value) {
         ui_print("Generating md5 sum...\n");
         sprintf(tmp, "nandroid-md5.sh %s", backup_path);
         if (0 != (ret = __system(tmp))) {
@@ -833,15 +841,10 @@ static nandroid_restore_handler get_restore_handler(const char *backup_path) {
         return tar_extract_wrapper;
     }
 
-    // cwr 5, we prefer tar for everything unless it is yaffs2
-    char str[255];
-    char* partition;
-    property_get("ro.cwm.prefer_tar", str, "false");
-    if (strcmp("true", str) != 0) {
-        return unyaffs_wrapper;
-    }
-
-    if (strcmp("yaffs2", mv->filesystem) == 0) {
+    // Disable tar backups of yaffs2 by default
+    char prefer_tar[PROPERTY_VALUE_MAX];
+    property_get("ro.cwm.prefer_tar", prefer_tar, "false");
+    if (strcmp("yaffs2", mv->filesystem) == 0 && strcmp("false", prefer_tar) == 0) {
         return unyaffs_wrapper;
     }
 
@@ -871,14 +874,14 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
             backup_filesystem = vol->fs_type;
         restore_handler = tar_extract_wrapper;
         strcpy(tmp, "/proc/self/fd/0");
-    } else if (twrp_backup_mode || 0 != (ret = stat(tmp, &file_info))) {
+    } else if (twrp_backup_mode.value || 0 != (ret = stat(tmp, &file_info))) {
         // can't find the backup, it may be the new backup format?
         // iterate through the backup types
         printf("couldn't find old .img format\n");
         const char *filesystem;
         int i = 0;
         while ((filesystem = filesystems[i]) != NULL) {
-            if (twrp_backup_mode) {
+            if (twrp_backup_mode.value) {
                 if (strstr(name, "android_secure") != NULL)
                     strcpy(name, "and-sec");
 
@@ -929,7 +932,7 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
             i++;
         }
 
-        if (twrp_backup_mode) {
+        if (twrp_backup_mode.value) {
             if (ret != 0) {
                 ui_print("Could not find TWRP backup image for %s\n", mount_point);
                 ui_print("Skipping restore of %s\n", mount_point);
@@ -983,7 +986,7 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
         return ret;
     }
 
-    if (twrp_backup_mode) {
+    if (twrp_backup_mode.value) {
         if (0 != (ret = twrp_restore_wrapper(tmp, mount_point, callback))) {
             ui_print("Error while restoring %s!\n", mount_point);
             return ret;
@@ -1055,7 +1058,7 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
         struct stat file_check;
         if (strcmp(backup_path, "-") == 0)
             strcpy(tmp, backup_path);
-        else if (twrp_backup_mode)
+        else if (twrp_backup_mode.value)
             sprintf(tmp, "%s%s.%s.win", backup_path, root, vol->fs_type);
         else
             sprintf(tmp, "%s%s.img", backup_path, root);
@@ -1093,7 +1096,7 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
         return print_and_error("Can't mount backup path\n");
 
     char tmp[PATH_MAX];
-    if (enable_md5sum) {
+    if (enable_md5sum.value) {
         ui_print("Checking MD5 sums...\n");
         sprintf(tmp, "cd %s && md5sum -c nandroid.md5", backup_path);
         if (0 != __system(tmp))
@@ -1179,7 +1182,7 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
                 ui_print("Failed to restore /preload!\n");
                 return ret;
             }
-        } else if (!is_custom_backup && nandroid_add_preload) {
+        } else if (!is_custom_backup && nandroid_add_preload.value) {
             if (restore_system && 0 != (ret = nandroid_restore_partition(backup_path, "/preload"))) {
                 ui_print("Failed to restore preload! Try to disable it.\n");
                 ui_print("Skipping /preload...\n");
@@ -1359,24 +1362,23 @@ int nandroid_main(int argc, char** argv) {
 #ifdef RECOVERY_NEED_SELINUX_FIX
 static int nochange;
 static int verbose;
-int bakupcon_to_file(const char *pathname, const char *filename)
-{
+int backupcon_to_file(const char *pathname, const char *filename) {
     int ret = 0;
     struct stat sb;
     char* filecontext = NULL;
     FILE * f = NULL;
     if (lstat(pathname, &sb) < 0) {
-        LOGW("bakupcon_to_file: %s not found\n", pathname);
+        LOGW("backupcon_to_file: %s not found\n", pathname);
         return -1;
     }
 
     if (lgetfilecon(pathname, &filecontext) < 0) {
-        LOGW("bakupcon_to_file: can't get %s context\n", pathname);
+        LOGW("backupcon_to_file: can't get %s context\n", pathname);
         ret = 1;
     }
     else {
         if ((f = fopen(filename, "a+")) == NULL) {
-            LOGE("bakupcon_to_file: can't create %s\n", filename);
+            LOGE("backupcon_to_file: can't create %s\n", filename);
             return -1;
         }
         //fprintf(f, "chcon -h %s '%s'\n", filecontext, pathname);
@@ -1404,7 +1406,7 @@ int bakupcon_to_file(const char *pathname, const char *filename)
                 strncmp(entryname, "/data/data/com.google.android.music/files/", 42) == 0 )
             continue;
 
-        bakupcon_to_file(entryname, filename);
+        backupcon_to_file(entryname, filename);
         free(entryname);
     }
 
@@ -1412,8 +1414,7 @@ int bakupcon_to_file(const char *pathname, const char *filename)
     return ret;
 }
 
-int restorecon_from_file(const char *filename)
-{
+int restorecon_from_file(const char *filename) {
     int ret = 0;
     FILE * f = NULL;
     if ((f = fopen(filename, "r")) == NULL)
@@ -1442,8 +1443,7 @@ int restorecon_from_file(const char *filename)
     return ret;
 }
 
-int restorecon_recursive(const char *pathname, const char *exclude)
-{
+int restorecon_recursive(const char *pathname, const char *exclude) {
     int ret = 0;
     struct stat sb;
     if (lstat(pathname, &sb) < 0) {

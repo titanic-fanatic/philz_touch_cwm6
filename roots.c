@@ -58,7 +58,7 @@ static void load_volume_table_extra() {
 
     fstab_extra = fs_mgr_read_fstab("/etc/extra.fstab");
     if (!fstab_extra) {
-        LOGI("No /etc/extra.fstab\n");
+        fprintf(stderr, "No /etc/extra.fstab\n");
         return;
     }
 
@@ -255,7 +255,8 @@ void setup_data_media() {
         sprintf(path, "/data/media/0");
     else sprintf(path, "/data/media");
 
-    LOGI("using %s for %s\n", path, mount_point);
+    if (ui_should_log_stdout())
+        LOGI("using %s for %s\n", path, mount_point);
     rmdir(mount_point);
     mkdir(path, 0755);
     symlink(path, mount_point);
@@ -273,7 +274,14 @@ int is_data_media_volume_path(const char* path) {
     return strcmp(path, "/sdcard") == 0 || path == strstr(path, "/sdcard/");
 }
 
+static int ensure_path_mounted_always_true = 0;
+void set_ensure_mount_always_true(int state) {
+    ensure_path_mounted_always_true = state;
+}
+
 int ensure_path_mounted(const char* path) {
+    if (ensure_path_mounted_always_true)
+        return 0;
     return ensure_path_mounted_at_mount_point(path, NULL);
 }
 
@@ -496,9 +504,10 @@ int format_volume(const char* volume) {
 
 #ifdef USE_F2FS
     if (strcmp(v->fs_type, "f2fs") == 0) {
-        int result = make_f2fs_main(v->blk_device, v->mount_point);
+        const char* args[] = { "mkfs.f2fs", v->blk_device };
+        int result = make_f2fs_main(2, (char**)args);
         if (result != 0) {
-            LOGE("format_volume: mkfs.f2f2 failed on %s\n", v->blk_device);
+            LOGE("format_volume: mkfs.f2fs failed on %s\n", v->blk_device);
             return -1;
         }
         return 0;

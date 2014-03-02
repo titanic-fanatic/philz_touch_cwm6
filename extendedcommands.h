@@ -1,11 +1,20 @@
-extern int signature_check_enabled;
-extern int script_assert_enabled;
-
 void
 toggle_signature_check();
 
 void
 show_choose_zip_menu();
+
+char**
+gather_files(const char* directory, const char* fileExtensionOrDirectory, int* numFiles);
+
+char*
+choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory, const char* headers[]);
+
+int
+get_filtered_menu_selection(const char** headers, char** items, int menu_only, int initial_selection, int items_count);
+
+void
+write_string_to_file(const char* filename, const char* string);
 
 int
 do_nandroid_backup(const char* backup_name);
@@ -38,6 +47,10 @@ int format_device(const char *device, const char *path, const char *fs_type);
 
 int format_unknown_device(const char *device, const char* path, const char *fs_type);
 
+void format_sdcard(const char* volume);
+
+void partition_sdcard(const char* volume);
+
 void create_fstab();
 
 int has_datadata();
@@ -65,6 +78,8 @@ static int is_path_mounted(const char* path);
 int volume_main(int argc, char **argv);
 
 void show_advanced_power_menu();
+
+extern int check_update_binary_version;
 
 #ifdef RECOVERY_EXTEND_NANDROID_MENU
 void extend_nandroid_menu(char** items, int item_count, int max_items);

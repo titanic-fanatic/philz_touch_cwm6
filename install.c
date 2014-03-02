@@ -36,6 +36,7 @@
 #include "firmware.h"
 
 #include "extendedcommands.h"
+#include "recovery_settings.h"
 
 
 #define ASSUMED_UPDATE_BINARY_NAME  "META-INF/com/google/android/update-binary"
@@ -160,7 +161,7 @@ try_update_binary(const char *path, ZipArchive *zip) {
     char tmpbuf;
     char setpermmatch[9] = { 's','e','t','_','p','e','r','m','_' };
     char setmetamatch[13] = { 's','e','t','_','m','e','t','a','d','a','t','a','_' };
-    int pos = 0;
+    size_t pos = 0;
     bool foundsetperm = false;
     bool foundsetmeta = false;
 
@@ -193,7 +194,7 @@ try_update_binary(const char *path, ZipArchive *zip) {
     fclose(updaterfile);
 
     /* Found set_perm and !set_metadata, overwrite the binary with the fallback */
-    if (foundsetperm && !foundsetmeta) {
+    if (check_update_binary_version && foundsetperm && !foundsetmeta) {
         FILE *fallbackupdater = fopen("/res/updater.fallback", "rb");
         FILE *updaterfile = fopen(binary, "wb");
         char updbuf[1024];
@@ -365,7 +366,7 @@ really_install_package(const char *path)
 
     int err;
 
-    if (signature_check_enabled) {
+    if (signature_check_enabled.value) {
         int numKeys;
         Certificate* loadedKeys = load_keys(PUBLIC_KEYS_FILE, &numKeys);
         if (loadedKeys == NULL) {

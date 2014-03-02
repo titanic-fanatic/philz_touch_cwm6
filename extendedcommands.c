@@ -47,8 +47,11 @@
 
 #include "adb_install.h"
 
-int signature_check_enabled = 1;
-int script_assert_enabled = 1;
+#ifdef PHILZ_TOUCH_RECOVERY
+#include "libtouch_gui/gui_settings.h"
+#endif
+
+int check_update_binary_version = 1;
 
 int get_filtered_menu_selection(const char** headers, char** items, int menu_only, int initial_selection, int items_count) {
     int index;
@@ -100,7 +103,7 @@ void write_recovery_version() {
     char path[PATH_MAX];
     sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_VERSION_FILE);
     write_string_to_file(path, EXPAND(RECOVERY_VERSION) "\n" EXPAND(TARGET_DEVICE));
-    // force unmount /data as we call this on recovery exit
+    // force unmount /data for /data/media devices as we call this on recovery exit
     ignore_data_media_workaround(1);
     ensure_path_unmounted(path);
     ignore_data_media_workaround(0);
@@ -113,7 +116,7 @@ static void write_last_install_path(const char* install_path) {
 }
 
 const char* read_last_install_path() {
-    char path[PATH_MAX];
+    static char path[PATH_MAX];
     sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_LAST_INSTALL_FILE);
 
     ensure_path_mounted(path);
@@ -128,18 +131,42 @@ const char* read_last_install_path() {
 }
 
 void toggle_signature_check() {
-    signature_check_enabled = !signature_check_enabled;
-    ui_print("Signature Check: %s\n", signature_check_enabled ? "Enabled" : "Disabled");
+    char value[3];
+    signature_check_enabled.value = !signature_check_enabled.value;
+    sprintf(value, "%d", signature_check_enabled.value);
+    write_config_file(PHILZ_SETTINGS_FILE, signature_check_enabled.key, value);
+    // ui_print("Signature Check: %s\n", signature_check_enabled.value ? "Enabled" : "Disabled");
 }
 
 #ifdef ENABLE_LOKI
-int loki_support_enabled = 0;
-void toggle_loki_support() {
+static void toggle_loki_support() {
     char value[3];
-    loki_support_enabled ^= 1;
-    sprintf(value, "%d", loki_support_enabled);
-    write_config_file(PHILZ_SETTINGS_FILE, "loki_support_enabled", value);
-    ui_print("Loki Support: %s\n", loki_support_enabled ? "Enabled" : "Disabled");
+    apply_loki_patch.value ^= 1;
+    sprintf(value, "%d", apply_loki_patch.value);
+    write_config_file(PHILZ_SETTINGS_FILE, apply_loki_patch.key, value);
+    // ui_print("Loki Support: %s\n", apply_loki_patch.value ? "Enabled" : "Disabled");
+}
+
+// this is called when we load recovery settings
+// it is needed when after recovery is booted, user wipes /data, then he installs a ROM: we can still return the user setting 
+int loki_support_enabled() {
+    char device_supports_loki[PROPERTY_VALUE_MAX];
+    int ret = -1;
+
+    property_get("ro.loki_enabled", device_supports_loki, "0");
+    if (strcmp(device_supports_loki, "1") == 0) {
+        // device variant supports loki: check if user enabled it
+        // if there is no settings file (read_config_file() < 0), it could be we have wiped /data before installing zip
+        // in that case, return current value (we last loaded on start or when user last set it) and not default
+        if (read_config_file(PHILZ_SETTINGS_FILE, apply_loki_patch.key, device_supports_loki, "1") >= 0) {
+            if (strcmp(device_supports_loki, "false") == 0 || strcmp(device_supports_loki, "0") == 0)
+                apply_loki_patch.value = 0;
+            else
+                apply_loki_patch.value = 1;
+        }
+        ret = apply_loki_patch.value;
+    }
+    return ret;
 }
 #endif
 
@@ -157,7 +184,7 @@ int install_zip(const char* packagefilepath) {
         return 1;
     }
 #ifdef ENABLE_LOKI
-    if (loki_support_enabled) {
+    if (loki_support_enabled() > 0) {
         ui_print("Checking if loki-fying is needed\n");
         status = loki_check();
         if (status != INSTALL_SUCCESS) {
@@ -175,7 +202,7 @@ int install_zip(const char* packagefilepath) {
 // top fixed menu items, those before extra storage volumes
 #define FIXED_TOP_INSTALL_ZIP_MENUS 1
 // bottom fixed menu items, those after extra storage volumes
-#define FIXED_BOTTOM_INSTALL_ZIP_MENUS 6
+#define FIXED_BOTTOM_INSTALL_ZIP_MENUS 7
 #define FIXED_INSTALL_ZIP_MENUS (FIXED_TOP_INSTALL_ZIP_MENUS + FIXED_BOTTOM_INSTALL_ZIP_MENUS)
 
 int show_install_update_menu() {
@@ -202,17 +229,28 @@ int show_install_update_menu() {
     }
 
     // FIXED_BOTTOM_INSTALL_ZIP_MENUS
+    char item_toggle_signature_check[MENU_MAX_COLS] = "";
+    char item_check_update_binary_version[MENU_MAX_COLS] = "";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes]     = "Choose zip Using Free Browse Mode";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 1] = "Choose zip from Last Install Folder";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 2] = "Install zip from sideload";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 3] = "Install Multiple zip Files";
-    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4] = "Toggle Signature Verification";
-    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5] = "Setup Free Browse Mode";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4] = item_toggle_signature_check;
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5] = item_check_update_binary_version;
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 6] = "Setup Free Browse Mode";
 
     // extra NULL for GO_BACK
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + FIXED_BOTTOM_INSTALL_ZIP_MENUS] = NULL;
 
     for (;;) {
+        if (signature_check_enabled.value)
+            ui_format_gui_menu(item_toggle_signature_check, "Signature Verification", "(x)");
+        else ui_format_gui_menu(item_toggle_signature_check, "Signature Verification", "( )");
+
+        if (check_update_binary_version)
+            ui_format_gui_menu(item_check_update_binary_version, "Don't Allow Old update-binary", "(x)");
+        else ui_format_gui_menu(item_check_update_binary_version, "Don't Allow Old update-binary", "( )");
+
         chosen_item = get_menu_selection(headers, install_menu_items, 0, 0);
         if (chosen_item == 0) {
             show_choose_zip_menu(primary_path);
@@ -222,8 +260,7 @@ int show_install_update_menu() {
             if (show_custom_zip_menu() != 0)
                 set_custom_zip_path();
         } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 1) {
-            char *last_path_used;
-            last_path_used = read_last_install_path();
+            const char *last_path_used = read_last_install_path();
             if (last_path_used == NULL)
                 show_choose_zip_menu(primary_path);
             else
@@ -235,6 +272,12 @@ int show_install_update_menu() {
         } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4) {
             toggle_signature_check();
         } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5) {
+            check_update_binary_version ^= 1;
+            if (!check_update_binary_version) {
+                ui_print("Try fixing some assert errors\n");
+                ui_print("Setting will be reset on reboot\n");
+            }
+        } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 6) {
             set_custom_zip_path();
         } else {
             // GO_BACK or REFRESH (chosen_item < 0)
@@ -372,10 +415,7 @@ char** gather_files(const char* directory, const char* fileExtensionOrDirectory,
 // pass in NULL for fileExtensionOrDirectory and you will get a directory chooser
 int no_files_found = 0;
 char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory, const char* headers[]) {
-    static const char* fixed_headers[20];
-    char path[PATH_MAX] = "";
-    DIR *dir;
-    struct dirent *de;
+    const char* fixed_headers[20];
     int numFiles = 0;
     int numDirs = 0;
     int i;
@@ -385,16 +425,12 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
 
     strcpy(directory, basedir);
 
-    // Append a traiing slash if necessary
+    // Append a trailing slash if necessary
     if (directory[dir_len - 1] != '/') {
         strcat(directory, "/");
         dir_len++;
     }
 
-    i = 0;
-    while (headers[i]) {
-        i++;
-    }
     i = 0;
     while (headers[i]) {
         fixed_headers[i] = headers[i];
@@ -434,19 +470,16 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
             int chosen_item = get_menu_selection(fixed_headers, list, 0, 0);
             if (chosen_item == GO_BACK || chosen_item == REFRESH)
                 break;
-            char ret[PATH_MAX];
             if (chosen_item < numDirs) {
                 char* subret = choose_file_menu(dirs[chosen_item], fileExtensionOrDirectory, headers);
                 if (subret != NULL) {
-                    strcpy(ret, subret);
-                    return_value = strdup(ret);
+                    return_value = strdup(subret);
                     free(subret);
                     break;
                 }
                 continue;
             }
-            strcpy(ret, files[chosen_item - numDirs]);
-            return_value = strdup(ret);
+            return_value = strdup(files[chosen_item - numDirs]);
             break;
         }
         free_string_array(list);
@@ -511,7 +544,7 @@ void show_nandroid_delete_menu(const char* path) {
     char backup_path[PATH_MAX];
     char tmp[PATH_MAX];
 
-    if (twrp_backup_mode) {
+    if (twrp_backup_mode.value) {
         char device_id[PROPERTY_VALUE_MAX];
         get_device_id(device_id);
         sprintf(backup_path, "%s/%s/%s", path, TWRP_BACKUP_PATH, device_id);
@@ -1263,7 +1296,7 @@ int show_nandroid_menu() {
             switch (chosen_subitem) {
                 case 0: {
                     char backup_path[PATH_MAX];
-                    if (twrp_backup_mode) {
+                    if (twrp_backup_mode.value) {
                         int fmt = nandroid_get_default_backup_format();
                         if (fmt != NANDROID_BACKUP_FORMAT_TAR && fmt != NANDROID_BACKUP_FORMAT_TGZ) {
                             LOGE("TWRP backup format must be tar(.gz)!\n");
@@ -1278,7 +1311,7 @@ int show_nandroid_menu() {
                     break;
                 }
                 case 1: {
-                    if (twrp_backup_mode)
+                    if (twrp_backup_mode.value)
                         show_twrp_restore_menu(chosen_path);
                     else
                         show_nandroid_restore_menu(chosen_path);
@@ -1319,7 +1352,7 @@ void format_sdcard(const char* volume) {
     if (!fs_mgr_is_voldmanaged(v) && !can_partition(volume))
         return;
 
-    char* headers[] = { "Format device:", volume, "", NULL };
+    const char* headers[] = { "Format device:", volume, "", NULL };
 
     static char* list[] = { "default",
                             "vfat",
@@ -1386,7 +1419,7 @@ void format_sdcard(const char* volume) {
         ui_print("Done formatting %s (%s)\n", volume, list[chosen_item]);
 }
 
-static void partition_sdcard(const char* volume) {
+void partition_sdcard(const char* volume) {
     if (!can_partition(volume)) {
         ui_print("Can't partition device: %s\n", volume);
         return;
@@ -1544,7 +1577,7 @@ int show_advanced_menu() {
     list[3] = "Show log";
     list[4] = NULL;
 #ifdef ENABLE_LOKI
-    list[5] = "Toggle Loki Support";
+    list[5] = NULL;
 #endif
 
     char list_prefix[] = "Partition ";
@@ -1569,9 +1602,23 @@ int show_advanced_menu() {
         if (is_data_media()) {
             ensure_path_mounted("/data");
             if (use_migrated_storage())
-                list[4] = strdup("Storage set to /data/media/0");
-            else list[4] = strdup("Storage set to /data/media");
+                list[4] = "Sdcard target: /data/media/0";
+            else list[4] = "Sdcard target: /data/media";
         }
+
+#ifdef ENABLE_LOKI
+        char item_loki_toggle_menu[MENU_MAX_COLS];
+        int enabled = loki_support_enabled();
+        if (enabled < 0) {
+            list[5] = NULL;
+        } else {
+            if (enabled)
+                ui_format_gui_menu(item_loki_toggle_menu, "Apply Loki Patch", "(x)");
+            else
+                ui_format_gui_menu(item_loki_toggle_menu, "Apply Loki Patch", "( )");
+            list[5] = item_loki_toggle_menu;
+        }
+#endif
 
         chosen_item = get_filtered_menu_selection(headers, list, 0, 0, sizeof(list) / sizeof(char*));
         if (chosen_item == GO_BACK || chosen_item == REFRESH)
@@ -1640,8 +1687,6 @@ int show_advanced_menu() {
         }
     }
 
-    if (list[4] != NULL)
-        free(list[4]);
     for (; j > 0; --j) {
         free(list[FIXED_ADVANCED_ENTRIES + j - 1]);
     }
@@ -1729,10 +1774,12 @@ void process_volumes() {
 
         if (count != 0) {
             count = 5;
-            while (count > 0 && umount("/data")) {
+            ignore_data_media_workaround(1);
+            while (count > 0 && ensure_path_unmounted("/data") != 0) {
                 usleep(500000);
                 count--;
             }
+            ignore_data_media_workaround(0);
             if (count == 0)
                 LOGE("could not unmount /data after /data/media setup\n");
         }
@@ -1820,7 +1867,7 @@ int volume_main(int argc, char **argv) {
 }
 
 int verify_root_and_recovery() {
-    if (!check_root_and_recovery)
+    if (!check_root_and_recovery.value)
         return 0;
 
     if (ensure_path_mounted("/system") != 0)
