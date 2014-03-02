@@ -796,6 +796,7 @@ static void get_ors_backup_volume(char *volume) {
 
 // choose ors backup volume and save user setting
 static void choose_ors_volume() {
+    char buf[100];
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
@@ -804,15 +805,35 @@ static void choose_ors_volume() {
                                 NULL
     };
 
+    #ifdef TARGET_CUSTOM_TAGS
+        char* ctags = strdup(TARGET_CUSTOM_TAGS);
+    #endif
+
     static char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
-    list[0] = strdup(primary_path);
+    #ifdef TARGET_CUSTOM_TAGS
+        if (ctags != NULL) {
+            sprintf(buf, "%s", strsep(&ctags, ","));
+        } else {
+            sprintf(buf, "%s", primary_path);
+        }
+    #else
+        sprintf(buf, "%s", primary_path);
+    #endif
+    list[0] = strdup(buf);
 
-    char buf[80];
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s", extra_paths[i]);
+            #ifdef TARGET_CUSTOM_TAGS
+                if (ctags != NULL) {
+                    sprintf(buf, "%s", strsep(&ctags, ","));
+                } else {
+                    sprintf(buf, "%s", extra_paths[i]);
+                }
+            #else
+                sprintf(buf, "%s", extra_paths[i]);
+            #endif
             list[i + 1] = strdup(buf);
         }
     }
@@ -1282,14 +1303,33 @@ static void show_custom_ors_menu() {
     static char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     char list_prefix[] = "Search ";
     char buf[256];
+    #ifdef TARGET_CUSTOM_TAGS
+        char* ctags = strdup(TARGET_CUSTOM_TAGS);
+    #endif
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
-    sprintf(buf, "%s%s", list_prefix, "Internal sdcard");
+    #ifdef TARGET_CUSTOM_TAGS
+        if (ctags != NULL) {
+            sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+        } else {
+            sprintf(buf, "%s%s", list_prefix, primary_path);
+        }
+    #else
+        sprintf(buf, "%s%s", list_prefix, primary_path);
+    #endif
     list[0] = strdup(buf);
 
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s%s", list_prefix, "External sdcard");
+            #ifdef TARGET_CUSTOM_TAGS
+                if (ctags != NULL) {
+                    sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+                } else {
+                    sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+                }
+            #else
+                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            #endif
             list[i + 1] = strdup(buf);
         }
     }
@@ -1378,14 +1418,33 @@ static void regenerate_md5_sum_menu() {
     char buf[80];
     static const char* headers[] = {"Regenerate md5 sum", "Select a backup to regenerate", NULL};
     static char* list[MAX_NUM_MANAGED_VOLUMES + 1];
+    #ifdef TARGET_CUSTOM_TAGS
+        char* ctags = strdup(TARGET_CUSTOM_TAGS);
+    #endif
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
-    sprintf(buf, "%s%s", list_prefix, primary_path);
+    #ifdef TARGET_CUSTOM_TAGS
+        if (ctags != NULL) {
+            sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+        } else {
+            sprintf(buf, "%s%s", list_prefix, primary_path);
+        }
+    #else
+        sprintf(buf, "%s%s", list_prefix, primary_path);
+    #endif
     list[0] = strdup(buf);
 
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+           #ifdef TARGET_CUSTOM_TAGS
+               if (ctags != NULL) {
+                    sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+                } else {
+                    sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+                }
+            #else
+                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            #endif
             list[i + 1] = strdup(buf);
         }
     }
@@ -1656,15 +1715,34 @@ void set_custom_zip_path() {
     char list_prefix[] = "Start Folder in ";
     char* list_main[MAX_NUM_MANAGED_VOLUMES + list_top_items + 1];
     char buf[80];
+    #ifdef TARGET_CUSTOM_TAGS
+        char* ctags = strdup(TARGET_CUSTOM_TAGS);
+    #endif
     memset(list_main, 0, MAX_NUM_MANAGED_VOLUMES + list_top_items + 1);
     list_main[0] = "Disable Free Browse Mode";
-    sprintf(buf, "%s%s", list_prefix, primary_path);
+    #ifdef TARGET_CUSTOM_TAGS
+        if (ctags != NULL) {
+            sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+        } else {
+            sprintf(buf, "%s%s", list_prefix, primary_path);
+        }
+    #else
+        sprintf(buf, "%s%s", list_prefix, primary_path);
+    #endif
     list_main[1] = strdup(buf);
 
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            #ifdef TARGET_CUSTOM_TAGS
+                if (ctags != NULL) {
+                    sprintf(buf, "%s%s", list_prefix, strsep(&ctags, ","));
+                } else {
+                    sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+                }
+            #else
+                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            #endif
             list_main[i + list_top_items] = strdup(buf);
         }
     }
