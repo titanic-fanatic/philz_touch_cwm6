@@ -400,7 +400,7 @@ char** gather_files(const char* directory, const char* fileExtensionOrDirectory,
             int curMax = -1;
             int j;
             for (j = 0; j < total - i; j++) {
-                if (curMax == -1 || strcmp(files[curMax], files[j]) < 0)
+                if (curMax == -1 || strcmp(tolower(files[curMax]), tolower(files[j])) < 0)
                     curMax = j;
             }
             char* temp = files[curMax];
