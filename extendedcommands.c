@@ -4,6 +4,7 @@
 #include <getopt.h>
 #include <limits.h>
 #include <linux/input.h>
+#include <stddef.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -213,18 +214,36 @@ int show_install_update_menu() {
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
+    
+    char storage_name[100];
 
     memset(install_menu_items, 0, MAX_NUM_MANAGED_VOLUMES + FIXED_INSTALL_ZIP_MENUS + 1);
 
     static const char* headers[] = { "Install update from zip file", "", NULL };
+    
+    if (volume_labels_enabled.value)
+        strcpy(storage_name, "Internal sdcard");
+    else
+        strcpy(storage_name, primary_path);
 
     // FIXED_TOP_INSTALL_ZIP_MENUS
-    sprintf(buf, "Choose zip from %s", primary_path);
+    sprintf(buf, "Choose zip from %s", storage_name);
     install_menu_items[0] = strdup(buf);
 
     // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
-        sprintf(buf, "Choose zip from %s", extra_paths[i]);
+        if (volume_labels_enabled.value) {
+            if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
+              strcpy(storage_name, "Internal sdcard");
+            else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
+                strcpy(storage_name, "External sdcard");
+            else
+				strcpy(storage_name, extra_paths[i]);
+        } else {
+			strcpy(storage_name, extra_paths[i]);
+        }
+        
+        sprintf(buf, "Choose zip from %s", storage_name);
         install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i] = strdup(buf);
     }
 
@@ -305,6 +324,8 @@ void free_string_array(char** array) {
     }
     free(array);
 }
+
+int strcmpi(const char *, const char *);
 
 char** gather_files(const char* directory, const char* fileExtensionOrDirectory, int* numFiles) {
     char path[PATH_MAX] = "";
@@ -400,8 +421,13 @@ char** gather_files(const char* directory, const char* fileExtensionOrDirectory,
             int curMax = -1;
             int j;
             for (j = 0; j < total - i; j++) {
-                if (curMax == -1 || strcmp(files[curMax], files[j]) < 0)
-                    curMax = j;
+                if (directory_sort_insensitive.value){
+                    if (curMax == -1 || strcmpi(files[curMax], files[j]) < 0)
+                        curMax = j;
+                } else {
+                    if (curMax == -1 || strcmp(files[curMax], files[j]) < 0)
+                        curMax = j;
+                }
             }
             char* temp = files[curMax];
             files[curMax] = files[total - i - 1];
@@ -411,6 +437,22 @@ char** gather_files(const char* directory, const char* fileExtensionOrDirectory,
 
     return files;
 }
+
+/* case insensitive C-string compare */
+int strcmpi(const char *s1, const char *s2) {
+    char *s1_p = (char *)s1, *s2_p = (char *)s2;
+    while ((tolower((int)(*s1_p)) == tolower((int)(*s2_p))) && (*s1_p != '\0')) {
+        ++s1_p; ++s2_p;
+    }
+    if (*s1_p == '\0') {
+        return 0;
+    } else {
+        int c1 = tolower((int)*s1_p), c2 = tolower((int)*s2_p);
+        return (c1 < c2) ? -1 : +1;
+    }
+}
+
+char *strrepl(const char *, const char *, const char *);
 
 // pass in NULL for fileExtensionOrDirectory and you will get a directory chooser
 int no_files_found = 0;
@@ -422,6 +464,22 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     char* return_value = NULL;
     char directory[PATH_MAX];
     int dir_len = strlen(basedir);
+    char storage_name[100];
+    
+    if (volume_labels_enabled.value){
+        char *ret;
+        
+        strcpy(storage_name, basedir);
+        ret = strstr(storage_name, "/storage/sdcard0");
+        
+        if (ret != NULL) {
+            strcpy(storage_name,
+                strrepl(storage_name, "/storage/sdcard0", "Internal sdcard"));
+        } else {
+            strcpy(storage_name,
+                strrepl(storage_name, "/storage/sdcard1", "External sdcard"));
+        }
+    }
 
     strcpy(directory, basedir);
 
@@ -436,7 +494,7 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
         fixed_headers[i] = headers[i];
         i++;
     }
-    fixed_headers[i] = directory;
+    fixed_headers[i] = volume_labels_enabled.value ? storage_name : directory;
     // let's spare some header space
     // fixed_headers[i + 1] = "";
     // fixed_headers[i + 2] = NULL;
@@ -488,6 +546,36 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     free_string_array(files);
     free_string_array(dirs);
     return return_value;
+}
+
+char *strrepl(const char *str, const char *old, const char *new) {
+    char *ret, *r;
+	const char *p, *q;
+	size_t oldlen = strlen(old);
+	size_t count, retlen, newlen = strlen(new);
+
+	if (oldlen != newlen) {
+		for (count = 0, p = str; (q = strstr(p, old)) != NULL; p = q + oldlen)
+			count++;
+		/* this is undefined if p - str > PTRDIFF_MAX */
+		retlen = p - str + strlen(p) + count * (newlen - oldlen);
+	} else
+		retlen = strlen(str);
+
+	if ((ret = malloc(retlen + 1)) == NULL)
+		return NULL;
+
+	for (r = ret, p = str; (q = strstr(p, old)) != NULL; p = q + oldlen) {
+		/* this is undefined if q - p > PTRDIFF_MAX */
+		ptrdiff_t l = q - p;
+		memcpy(r, p, l);
+		r += l;
+		memcpy(r, new, newlen);
+		r += newlen;
+	}
+	strcpy(r, p);
+
+	return ret;
 }
 
 void show_choose_zip_menu(const char *mount_point) {
@@ -924,6 +1012,8 @@ int show_partition_menu() {
     int i, mountable_volumes, formatable_volumes;
     int num_volumes;
     int chosen_item = 0;
+	
+	char storage_name[100];
 
     num_volumes = get_num_volumes();
 
@@ -945,14 +1035,26 @@ int show_partition_menu() {
 
         MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
 
+        if (volume_labels_enabled.value){
+            if (strcmp(v->mount_point, "/storage/sdcard0") == 0)
+                strcpy(storage_name, "Internal sdcard");
+            else if (strcmp(v->mount_point, "/storage/sdcard1") == 0)
+                strcpy(storage_name, "External sdcard");
+            else
+                strcpy(storage_name, v->mount_point);
+        }
+        else {
+            strcpy(storage_name, v->mount_point);
+        }
+
         if (mfm.can_mount) {
-            sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
-            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
+            sprintf(mount_menu[mountable_volumes].mount, "mount %s", storage_name);
+            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", storage_name);
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
         if (mfm.can_format) {
-            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
+            sprintf(format_menu[formatable_volumes].txt, "format %s", storage_name);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
@@ -1188,20 +1290,32 @@ void choose_default_backup_format() {
 
 static void add_nandroid_options_for_volume(char** menu, char* path, int offset) {
     char buf[100];
+    char storage_name[100];
+    
+    if (volume_labels_enabled.value) {
+        if (strcmp(path, "/storage/sdcard0") == 0)
+            strcpy(storage_name, "Internal sdcard");
+        else if (strcmp(path, "/storage/sdcard1") == 0)
+            strcpy(storage_name, "External sdcard");
+        else
+            strcpy(storage_name, path);
+    } else {
+        strcpy(storage_name, path);
+    }
 
-    sprintf(buf, "Backup to %s", path);
+    sprintf(buf, "Backup to %s", storage_name);
     menu[offset] = strdup(buf);
 
-    sprintf(buf, "Restore from %s", path);
+    sprintf(buf, "Restore from %s", storage_name);
     menu[offset + 1] = strdup(buf);
 
-    sprintf(buf, "Delete from %s", path);
+    sprintf(buf, "Delete from %s", storage_name);
     menu[offset + 2] = strdup(buf);
 
-    sprintf(buf, "Custom Backup to %s", path);
+    sprintf(buf, "Custom Backup to %s", storage_name);
     menu[offset + 3] = strdup(buf);
 
-    sprintf(buf, "Custom Restore from %s", path);
+    sprintf(buf, "Custom Restore from %s", storage_name);
     menu[offset + 4] = strdup(buf);
 }
 
@@ -1551,6 +1665,8 @@ int show_advanced_menu() {
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
+	
+    char storage_name[100];
 
     static const char* headers[] = { "Advanced Menu", NULL };
 
@@ -1564,10 +1680,15 @@ int show_advanced_menu() {
 #ifdef ENABLE_LOKI
     list[5] = NULL;
 #endif
+    
+    if (volume_labels_enabled.value)
+        strcpy(storage_name, "Internal sdcard");
+    else
+        strcpy(storage_name, primary_path);
 
     char list_prefix[] = "Partition ";
     if (can_partition(primary_path)) {
-        sprintf(buf, "%s%s", list_prefix, primary_path);
+        sprintf(buf, "%s%s", list_prefix, storage_name);
         list[FIXED_ADVANCED_ENTRIES] = strdup(buf);
         j++;
     }
@@ -1575,7 +1696,18 @@ int show_advanced_menu() {
     if (extra_paths != NULL) {
         for (i = 0; i < num_extra_volumes; i++) {
             if (can_partition(extra_paths[i])) {
-                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+                if (volume_labels_enabled.value) {
+                    if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
+                        strcpy(storage_name, "Internal sdcard");
+                    else if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
+                        strcpy(storage_name, "External sdcard");
+                    else
+                        strcpy(storage_name, extra_paths[i]);
+                } else {
+                    strcpy(storage_name, extra_paths[i]);
+                }
+                
+                sprintf(buf, "%s%s", list_prefix, storage_name);
                 list[FIXED_ADVANCED_ENTRIES + j] = strdup(buf);
                 j++;
             }

@@ -1553,23 +1553,38 @@ static void show_custom_ors_menu() {
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
+	char storage_name[100];
 
     static const char* headers[] = {  "Search .ors script to run",
                                 "",
                                 NULL
     };
+	
+	if (volume_labels_enabled.value && strcmp(primary_path, "/storage/sdcard0") == 0)
+        strcpy(storage_name, "Internal sdcard");
+    else
+        strcpy(storage_name, primary_path);
 
     static char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     char list_prefix[] = "Search ";
     char buf[256];
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
-    sprintf(buf, "%s%s", list_prefix, primary_path);
+    sprintf(buf, "%s%s", list_prefix, storage_name);
     list[0] = strdup(buf);
 
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
+            if (volume_labels_enabled.value) {
+                if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
+                    strcpy(storage_name, "Internal sdcard");
+                else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
+                    strcpy(storage_name, "External sdcard");
+            } else {
+                strcpy(storage_name, extra_paths[i]);
+            }
+            
+            sprintf(buf, "%s%s", list_prefix, storage_name);
             list[i + 1] = strdup(buf);
         }
     }
