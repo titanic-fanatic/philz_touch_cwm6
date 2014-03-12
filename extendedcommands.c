@@ -951,7 +951,8 @@ int show_partition_menu() {
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
-        if (mfm.can_format) {            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
+        if (mfm.can_format) {
+            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
