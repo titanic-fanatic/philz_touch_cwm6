@@ -923,8 +923,6 @@ int show_partition_menu() {
     int i, mountable_volumes, formatable_volumes;
     int num_volumes;
     int chosen_item = 0;
-	
-	char storage_name[100];
 
     num_volumes = get_num_volumes();
 
@@ -939,13 +937,8 @@ int show_partition_menu() {
 
     for (i = 0; i < num_volumes; i++) {
         Volume* v = get_device_volumes() + i;
-
-        if (fs_mgr_is_voldmanaged(v) && !vold_is_volume_available(v->mount_point)) {
-            continue;
-        }
-
-        MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
-
+        char storage_name[20];
+        
         if (strcmp(v->mount_point, "/storage/sdcard0") == 0) {
             strcpy(storage_name, "Internal sdcard");
         } else if (strcmp(v->mount_point, "/storage/sdcard1") == 0) {
@@ -954,14 +947,20 @@ int show_partition_menu() {
             strcpy(storage_name, v->mount_point);
         }
 
+        if (fs_mgr_is_voldmanaged(v) && !vold_is_volume_available(v->mount_point)) {
+            continue;
+        }
+
+        MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
+
         if (mfm.can_mount) {
-            sprintf(mount_menu[mountable_volumes].mount, "mount %s", storage_name);
-            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", storage_name);
+            sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
+            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
         if (mfm.can_format) {
-            sprintf(format_menu[formatable_volumes].txt, "format %s", storage_name);
+            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
@@ -1197,7 +1196,7 @@ void choose_default_backup_format() {
 
 static void add_nandroid_options_for_volume(char** menu, char* path, int offset) {
     char buf[100];
-    char storage_name[100];
+    char storage_name[20];
     
     if (strcmp(path, "/storage/sdcard0") == 0) {
         strcpy(storage_name, "Internal sdcard");
@@ -1583,7 +1582,7 @@ int show_advanced_menu() {
 
     char list_prefix[] = "Partition ";
     if (can_partition(primary_path)) {
-        sprintf(buf, "%s%s", list_prefix, "Internal sdcard");
+        sprintf(buf, "%s%s", list_prefix, primary_path);
         list[FIXED_ADVANCED_ENTRIES] = strdup(buf);
         j++;
     }
@@ -1591,7 +1590,7 @@ int show_advanced_menu() {
     if (extra_paths != NULL) {
         for (i = 0; i < num_extra_volumes; i++) {
             if (can_partition(extra_paths[i])) {
-                sprintf(buf, "%s%s", list_prefix, "External sdcard");
+                sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
                 list[FIXED_ADVANCED_ENTRIES + j] = strdup(buf);
                 j++;
             }
