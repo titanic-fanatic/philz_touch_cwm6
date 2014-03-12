@@ -943,7 +943,6 @@ int show_partition_menu() {
             continue;
         }
 
-<<<<<<< HEAD
         MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
 
         if (mfm.can_mount) {
@@ -952,26 +951,7 @@ int show_partition_menu() {
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
-        if (mfm.can_format) {
-=======
-        if(strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) != 0 && strcmp("emmc", v->fs_type) != 0 && strcmp("bml", v->fs_type) != 0) {
-            if (strcmp("datamedia", v->fs_type) != 0) {
-                sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
-                sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
-                sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
-                ++mountable_volumes;
-            }
-            if (is_safe_to_format(v->mount_point)) {
-                sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
-                sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
-                sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
-                ++formatable_volumes;
-            }
-        }
-        else if (strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) == 0 && is_safe_to_format(v->mount_point))
-        {
->>>>>>> parent of 09bb9d4... Changed internal/external storage names
-            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
+        if (mfm.can_format) {            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
