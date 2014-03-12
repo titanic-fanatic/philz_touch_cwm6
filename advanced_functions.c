@@ -3502,6 +3502,8 @@ void show_philz_settings_menu()
 
     char item_check_root_and_recovery[MENU_MAX_COLS];
     char item_auto_restore[MENU_MAX_COLS];
+    char item_volume_labels_enabled[MENU_MAX_COLS];
+    char item_directory_sort_insensitive[MENU_MAX_COLS];
 
     char* list[] = { "Open Recovery Script",
                         "Aroma File Manager",
@@ -3511,6 +3513,8 @@ void show_philz_settings_menu()
                         "Save and Restore Settings",
                         "Reset All Recovery Settings",
                         "GUI Preferences",
+                        item_volume_labels_enabled,
+                        item_directory_sort_insensitive,
                         "About",
                          NULL
     };
@@ -3523,6 +3527,14 @@ void show_philz_settings_menu()
         if (auto_restore_settings.value)
             ui_format_gui_menu(item_auto_restore, "Auto Restore Settings", "(x)");
         else ui_format_gui_menu(item_auto_restore, "Auto Restore Settings", "( )");
+        
+        if (volume_labels_enabled.value)
+            ui_format_gui_menu(item_volume_labels_enabled, "Volume Labels Enabled", "(x)");
+        else ui_format_gui_menu(item_volume_labels_enabled, "Volume Labels Enabled", "( )");
+        
+        if (directory_sort_insensitive.value)
+            ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort In-Sensitive", "(x)");
+        else ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort In-Sensitive", "( )");
 
         int chosen_item = get_menu_selection(headers, list, 0, 0);
         if (chosen_item == GO_BACK)
@@ -3599,6 +3611,20 @@ void show_philz_settings_menu()
                 break;
             }
             case 8: {
+                char value[5];
+                volume_labels_enabled.value ^= 1;
+                sprintf(value, "%d", volume_labels_enabled.value);
+                write_config_file(PHILZ_SETTINGS_FILE, volume_labels_enabled.key, value);
+                break;
+            }
+            case 9: {
+                char value[5];
+                directory_sort_insensitive.value ^= 1;
+                sprintf(value, "%d", directory_sort_insensitive.value);
+                write_config_file(PHILZ_SETTINGS_FILE, directory_sort_insensitive.key, value);
+                break;
+            }
+            case 10: {
                 ui_print(EXPAND(RECOVERY_MOD_VERSION) "\n");
                 ui_print("Build version: " EXPAND(PHILZ_BUILD) " - " EXPAND(TARGET_COMMON_NAME) "\n");
                 ui_print("CWM Base version: " EXPAND(CWM_BASE_VERSION) "\n");
