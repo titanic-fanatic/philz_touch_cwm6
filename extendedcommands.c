@@ -219,12 +219,12 @@ int show_install_update_menu() {
     static const char* headers[] = { "Install update from zip file", "", NULL };
 
     // FIXED_TOP_INSTALL_ZIP_MENUS
-    sprintf(buf, "Choose zip from %s", "Internal sdcard");
+    sprintf(buf, "Choose zip from %s", primary_path);
     install_menu_items[0] = strdup(buf);
 
     // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
-        sprintf(buf, "Choose zip from %s", "External sdcard");
+        sprintf(buf, "Choose zip from %s", extra_paths[i]);
         install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i] = strdup(buf);
     }
 
@@ -937,20 +937,12 @@ int show_partition_menu() {
 
     for (i = 0; i < num_volumes; i++) {
         Volume* v = get_device_volumes() + i;
-        char storage_name;
-        
-        if (strcmp(path, "/storage/sdcard0")) {
-            strcpy(storage_name, "Internal sdcard");
-        } else if (strcmp(path, "/storage/sdcard1")) {
-            strcpy(storage_name, "External sdcard");
-        } else {
-            strcpy(storage_name, path);
-        }
 
         if (fs_mgr_is_voldmanaged(v) && !vold_is_volume_available(v->mount_point)) {
             continue;
         }
 
+<<<<<<< HEAD
         MFMatrix mfm = get_mnt_fmt_capabilities(v->fs_type, v->mount_point);
 
         if (mfm.can_mount) {
@@ -960,6 +952,24 @@ int show_partition_menu() {
             ++mountable_volumes;
         }
         if (mfm.can_format) {
+=======
+        if(strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) != 0 && strcmp("emmc", v->fs_type) != 0 && strcmp("bml", v->fs_type) != 0) {
+            if (strcmp("datamedia", v->fs_type) != 0) {
+                sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
+                sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
+                sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
+                ++mountable_volumes;
+            }
+            if (is_safe_to_format(v->mount_point)) {
+                sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
+                sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
+                sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
+                ++formatable_volumes;
+            }
+        }
+        else if (strcmp("ramdisk", v->fs_type) != 0 && strcmp("mtd", v->fs_type) == 0 && is_safe_to_format(v->mount_point))
+        {
+>>>>>>> parent of 09bb9d4... Changed internal/external storage names
             sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
@@ -1196,27 +1206,20 @@ void choose_default_backup_format() {
 
 static void add_nandroid_options_for_volume(char** menu, char* path, int offset) {
     char buf[100];
-    char storage_name;
-    
-    if (strcmp(path, "/storage/sdcard0")) {
-        strcpy(storage_name, "Internal sdcard");
-    } else {
-        strcpy(storage_name, "External sdcard");
-    }
 
-    sprintf(buf, "Backup to %s", storage_name);
+    sprintf(buf, "Backup to %s", path);
     menu[offset] = strdup(buf);
 
-    sprintf(buf, "Restore from %s", storage_name);
+    sprintf(buf, "Restore from %s", path);
     menu[offset + 1] = strdup(buf);
 
-    sprintf(buf, "Delete from %s", storage_name);
+    sprintf(buf, "Delete from %s", path);
     menu[offset + 2] = strdup(buf);
 
-    sprintf(buf, "Custom Backup to %s", storage_name);
+    sprintf(buf, "Custom Backup to %s", path);
     menu[offset + 3] = strdup(buf);
 
-    sprintf(buf, "Custom Restore from %s", storage_name);
+    sprintf(buf, "Custom Restore from %s", path);
     menu[offset + 4] = strdup(buf);
 }
 
