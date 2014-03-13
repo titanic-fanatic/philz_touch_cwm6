@@ -216,13 +216,25 @@ int show_install_update_menu() {
     int num_extra_volumes = get_num_extra_volumes();
     
     char storage_name[100];
+    
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
 
     memset(install_menu_items, 0, MAX_NUM_MANAGED_VOLUMES + FIXED_INSTALL_ZIP_MENUS + 1);
 
     static const char* headers[] = { "Install update from zip file", "", NULL };
     
     if (volume_labels_enabled.value)
-        strcpy(storage_name, "Internal sdcard");
+        strcpy(storage_name, primary_storage_label);
     else
         strcpy(storage_name, primary_path);
 
@@ -234,9 +246,9 @@ int show_install_update_menu() {
     for (i = 0; i < num_extra_volumes; i++) {
         if (volume_labels_enabled.value) {
             if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-              strcpy(storage_name, "Internal sdcard");
+              strcpy(storage_name, primary_storage_label);
             else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
-                strcpy(storage_name, "External sdcard");
+                strcpy(storage_name, secondary_storage_label);
             else
 				strcpy(storage_name, extra_paths[i]);
         } else {
@@ -466,6 +478,18 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     int dir_len = strlen(basedir);
     char storage_name[100];
     
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
+    
     if (volume_labels_enabled.value){
         char *ret;
         
@@ -474,10 +498,10 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
         
         if (ret != NULL) {
             strcpy(storage_name,
-                strrepl(storage_name, "/storage/sdcard0", "Internal sdcard"));
+                strrepl(storage_name, "/storage/sdcard0", primary_storage_label));
         } else {
             strcpy(storage_name,
-                strrepl(storage_name, "/storage/sdcard1", "External sdcard"));
+                strrepl(storage_name, "/storage/sdcard1", secondary_storage_label));
         }
     }
 
@@ -1014,6 +1038,18 @@ int show_partition_menu() {
     int chosen_item = 0;
 	
 	char storage_name[100];
+	
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
 
     num_volumes = get_num_volumes();
 
@@ -1037,9 +1073,9 @@ int show_partition_menu() {
 
         if (volume_labels_enabled.value){
             if (strcmp(v->mount_point, "/storage/sdcard0") == 0)
-                strcpy(storage_name, "Internal sdcard");
+                strcpy(storage_name, primary_storage_label);
             else if (strcmp(v->mount_point, "/storage/sdcard1") == 0)
-                strcpy(storage_name, "External sdcard");
+                strcpy(storage_name, secondary_storage_label);
             else
                 strcpy(storage_name, v->mount_point);
         }
@@ -1292,11 +1328,23 @@ static void add_nandroid_options_for_volume(char** menu, char* path, int offset)
     char buf[100];
     char storage_name[100];
     
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
+    
     if (volume_labels_enabled.value) {
         if (strcmp(path, "/storage/sdcard0") == 0)
-            strcpy(storage_name, "Internal sdcard");
+            strcpy(storage_name, primary_storage_label);
         else if (strcmp(path, "/storage/sdcard1") == 0)
-            strcpy(storage_name, "External sdcard");
+            strcpy(storage_name, secondary_storage_label);
         else
             strcpy(storage_name, path);
     } else {
@@ -1667,6 +1715,18 @@ int show_advanced_menu() {
     int num_extra_volumes = get_num_extra_volumes();
 	
     char storage_name[100];
+    
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
 
     static const char* headers[] = { "Advanced Menu", NULL };
 
@@ -1682,7 +1742,7 @@ int show_advanced_menu() {
 #endif
     
     if (volume_labels_enabled.value)
-        strcpy(storage_name, "Internal sdcard");
+        strcpy(storage_name, primary_storage_label);
     else
         strcpy(storage_name, primary_path);
 
@@ -1698,9 +1758,9 @@ int show_advanced_menu() {
             if (can_partition(extra_paths[i])) {
                 if (volume_labels_enabled.value) {
                     if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-                        strcpy(storage_name, "Internal sdcard");
+                        strcpy(storage_name, primary_storage_label);
                     else if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-                        strcpy(storage_name, "External sdcard");
+                        strcpy(storage_name, secondary_storage_label);
                     else
                         strcpy(storage_name, extra_paths[i]);
                 } else {

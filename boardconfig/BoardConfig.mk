@@ -201,6 +201,8 @@ else ifeq ($(TARGET_PRODUCT), cm_celoxhd)
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     BOARD_USE_FB2PNG := true
     BOARD_USE_B_SLOT_PROTOCOL := true
+    RECOVERY_PRIMARY_STORAGE_LABEL := "\"Internal sdcard\""
+    RECOVERY_SECONDARY_STORAGE_LABEL := "\"External sdcard\""
 
 #Samsung Exhilarate SGH-I577 - exhilarate
 else ifeq ($(TARGET_PRODUCT), cm_exhilarate)

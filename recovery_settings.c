@@ -59,6 +59,8 @@ struct CWMSettingsIntValues show_nandroid_size_progress = { "show_nandroid_size_
 struct CWMSettingsIntValues use_nandroid_simple_logging = { "use_nandroid_simple_logging", 1};
 struct CWMSettingsIntValues nand_prompt_on_low_space = { "nand_prompt_on_low_space", 1};
 struct CWMSettingsIntValues signature_check_enabled = { "signature_check_enabled", 0};
+struct CWMSettingsIntValues volume_labels_enabled = { "volume_labels_enabled", 0};
+struct CWMSettingsIntValues directory_sort_insensitive = { "directory_sort_insensitive", 0};
 
 struct CWMSettingsIntValues boardEnableKeyRepeat = { "boardEnableKeyRepeat", 1};
 
@@ -161,6 +163,24 @@ static void check_root_and_recovery_settings() {
         check_root_and_recovery.value = 0;
     else
         check_root_and_recovery.value = 1;
+}
+
+static void check_volume_labels_settings() {
+    char value[PROPERTY_VALUE_MAX];
+    read_config_file(PHILZ_SETTINGS_FILE, volume_labels_enabled.key, value, "true");
+    if (strcmp(value, "false") == 0 || strcmp(value, "0") == 0)
+        volume_labels_enabled.value = 0;
+    else
+        volume_labels_enabled.value = 1;
+}
+
+static void check_directory_sort_settings() {
+    char value[PROPERTY_VALUE_MAX];
+    read_config_file(PHILZ_SETTINGS_FILE, directory_sort_insensitive.key, value, "true");
+    if (strcmp(value, "false") == 0 || strcmp(value, "0") == 0)
+        directory_sort_insensitive.value = 0;
+    else
+        directory_sort_insensitive.value = 1;
 }
 
 static void refresh_nandroid_compression() {
@@ -268,6 +288,8 @@ void refresh_recovery_settings(int on_start) {
     check_nandroid_simple_logging();
     check_prompt_on_low_space();
     check_signature_check();
+    check_volume_labels_settings();
+    check_directory_sort_settings();
     initialize_extra_partitions_state();
 #ifdef ENABLE_LOKI
     loki_support_enabled();

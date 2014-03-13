@@ -1554,14 +1554,26 @@ static void show_custom_ors_menu() {
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
 	char storage_name[100];
+	
+#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
+    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+#else
+    char primary_storage_label[] = "Internal sdcard";
+#endif
+
+#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
+    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+#else
+    char secondary_storage_label[] = "External sdcard";
+#endif
 
     static const char* headers[] = {  "Search .ors script to run",
                                 "",
                                 NULL
     };
 	
-	if (volume_labels_enabled.value && strcmp(primary_path, "/storage/sdcard0") == 0)
-        strcpy(storage_name, "Internal sdcard");
+	if (volume_labels_enabled.value)
+        strcpy(storage_name, primary_storage_label);
     else
         strcpy(storage_name, primary_path);
 
@@ -1577,9 +1589,9 @@ static void show_custom_ors_menu() {
         for(i = 0; i < num_extra_volumes; i++) {
             if (volume_labels_enabled.value) {
                 if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-                    strcpy(storage_name, "Internal sdcard");
+                    strcpy(storage_name, primary_storage_label);
                 else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
-                    strcpy(storage_name, "External sdcard");
+                    strcpy(storage_name, secondary_storage_label);
             } else {
                 strcpy(storage_name, extra_paths[i]);
             }
@@ -3548,8 +3560,8 @@ void show_philz_settings_menu()
         else ui_format_gui_menu(item_volume_labels_enabled, "Volume Labels Enabled", "( )");
         
         if (directory_sort_insensitive.value)
-            ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort In-Sensitive", "(x)");
-        else ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort In-Sensitive", "( )");
+            ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort Insensitive", "(x)");
+        else ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort Insensitive", "( )");
 
         int chosen_item = get_menu_selection(headers, list, 0, 0);
         if (chosen_item == GO_BACK)
