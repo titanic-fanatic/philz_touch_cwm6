@@ -225,13 +225,13 @@ int show_install_update_menu() {
     char storage_name[100];
     
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif
@@ -494,13 +494,13 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     char storage_name[100];
     
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif
@@ -1061,13 +1061,13 @@ int show_partition_menu() {
 	char storage_name[100];
 	
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif
@@ -1350,13 +1350,13 @@ static void add_nandroid_options_for_volume(char** menu, char* path, int offset)
     char storage_name[100];
     
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif
@@ -1738,13 +1738,13 @@ int show_advanced_menu() {
     char storage_name[100];
     
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif

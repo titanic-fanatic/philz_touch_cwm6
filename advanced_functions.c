@@ -1618,13 +1618,13 @@ static void show_custom_ors_menu() {
 	char storage_name[100];
 	
 #ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = EXPAND(RECOVERY_PRIMARY_STORAGE_LABEL);
+    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
 #else
     char primary_storage_label[] = "Internal sdcard";
 #endif
 
 #ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = EXPAND(RECOVERY_SECONDARY_STORAGE_LABEL);
+    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
 #else
     char secondary_storage_label[] = "External sdcard";
 #endif
