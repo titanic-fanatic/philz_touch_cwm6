@@ -162,10 +162,9 @@ void ui_print_custom_logtail(const char* filename, int nb_lines) {
 
 // basename and dirname implementation that is thread safe, no free and doesn't modify argument
 // it is extracted from NDK and modified dirname_r to never modify passed argument
-int BaseName_r(const char* path, char*  buffer, size_t  bufflen)
-{
+int BaseName_r(const char* path, char*  buffer, size_t  bufflen) {
     const char *endp, *startp;
-    int         len, result;
+    int len, result;
 
     /* Empty or NULL string gets treated as "." */
     if (path == NULL || *path == '\0') {
@@ -176,8 +175,9 @@ int BaseName_r(const char* path, char*  buffer, size_t  bufflen)
 
     /* Strip trailing slashes */
     endp = path + strlen(path) - 1;
-    while (endp > path && *endp == '/')
+    while (endp > path && *endp == '/') {
         endp--;
+    }
 
     /* All slashes becomes "/" */
     if (endp == path && *endp == '/') {
@@ -188,8 +188,9 @@ int BaseName_r(const char* path, char*  buffer, size_t  bufflen)
 
     /* Find the start of the base */
     startp = endp;
-    while (startp > path && *(startp - 1) != '/')
+    while (startp > path && *(startp - 1) != '/') {
         startp--;
+    }
 
     len = endp - startp +1;
 
@@ -224,10 +225,9 @@ char* BaseName(const char* path) {
     return (ret < 0) ? NULL : bname;
 }
 
-int DirName_r(const char*  path, char*  buffer, size_t  bufflen)
-{
+int DirName_r(const char*  path, char*  buffer, size_t  bufflen) {
     const char *endp, *startp;
-    int         result, len;
+    int result, len;
 
     /* Empty or NULL string gets treated as "." */
     if (path == NULL || *path == '\0') {
@@ -238,12 +238,14 @@ int DirName_r(const char*  path, char*  buffer, size_t  bufflen)
 
     /* Strip trailing slashes */
     endp = path + strlen(path) - 1;
-    while (endp > path && *endp == '/')
+    while (endp > path && *endp == '/') {
         endp--;
+    }
 
     /* Find the start of the dir */
-    while (endp > path && *endp != '/')
+    while (endp > path && *endp != '/') {
         endp--;
+    }
 
     /* Either the dir is "/" or there are no slashes */
     if (endp == path) {
@@ -588,26 +590,21 @@ unsigned long long Get_Folder_Size(const char* Path) {
     strcpy(path2, Path);
 
     d = opendir(path2);
-    if (d == NULL)
-    {
+    if (d == NULL) {
         LOGE("error opening '%s'\n", path2);
         LOGE("error: %s\n", strerror(errno));
         return 0;
     }
 
-    while ((de = readdir(d)) != NULL)
-    {
-        if (de->d_type == DT_DIR && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0)
-        {
+    while ((de = readdir(d)) != NULL) {
+        if (de->d_type == DT_DIR && strcmp(de->d_name, ".") != 0 && strcmp(de->d_name, "..") != 0) {
             strcpy(filename, path2);
             strcat(filename, "/");
             strcat(filename, de->d_name);
             dutemp = Get_Folder_Size(filename);
             dusize += dutemp;
             dutemp = 0;
-        }
-        else if (de->d_type == DT_REG)
-        {
+        } else if (de->d_type == DT_REG) {
             strcpy(filename, path2);
             strcat(filename, "/");
             strcat(filename, de->d_name);
@@ -719,26 +716,23 @@ int write_md5digest(const char* md5file) {
 }
 
 int verify_md5digest(const char* filepath, const char* md5file) {
-    char tmp[PATH_MAX];
+    char md5file2[PATH_MAX];
     int ret = -1;
-    if (md5file == NULL) {
-        sprintf(tmp, "%s.md5", filepath);
-        md5file = tmp;
-    }
 
     if (!file_found(filepath)) {
         LOGE("verify_md5digest: '%s' not found\n", filepath);
         return ret;
     }
 
-    if (!file_found(md5file)) {
-        LOGE("verify_md5digest: '%s' not found\n", md5file);
-        return ret;
+    if (md5file != NULL) {
+        sprintf(md5file2, "%s", md5file);
+    } else {
+        sprintf(md5file2, "%s.md5", filepath);
     }
 
     // read md5 sum from md5file
     unsigned long len = 0;
-    char* md5read = read_file_to_buffer(md5file, &len);
+    char* md5read = read_file_to_buffer(md5file2, &len);
     if (md5read == NULL)
         return ret;
     md5read[len] = '\0';
@@ -752,9 +746,9 @@ int verify_md5digest(const char* filepath, const char* md5file) {
             strcat(md5sum, hex);
         }
 
-        sprintf(tmp, "%s", BaseName(filepath));
+        sprintf(md5file2, "%s", BaseName(filepath));
         strcat(md5sum, "  ");
-        strcat(md5sum, tmp);
+        strcat(md5sum, md5file2);
         strcat(md5sum, "\n");
         if (strcmp(md5read, md5sum) != 0) {
             LOGE("MD5 calc: %s\n", md5sum);
@@ -796,8 +790,14 @@ static void *md5_verify_thread(void *arg) {
 }
 
 void start_md5_display_thread(char* filepath) {
+    // ensure_path_mounted() is not thread safe, we must disable it when starting a thread for md5 checks
+    // we ensure primary storage is also mounted as it is needed by confirm_install() function
+    ensure_path_mounted(get_primary_storage_path());
+    set_ensure_mount_always_true(1);
+
     ui_print_preset_colors(1, NULL);
     ui_print("Calculating md5sum...\n");
+
     pthread_create(&tmd5_display, NULL, &md5_display_thread, filepath);
 }
 
@@ -806,12 +806,20 @@ void stop_md5_display_thread() {
     ui_print_preset_colors(0, NULL);
     if (pthread_kill(tmd5_display, 0) != ESRCH)
         ui_print("Cancelling md5sum...\n");
+
     pthread_join(tmd5_display, NULL);
+    set_ensure_mount_always_true(0);
 }
 
 void start_md5_verify_thread(char* filepath) {
+    // ensure_path_mounted() is not thread safe, we must disable it when starting a thread for md5 checks
+    // we ensure primary storage is also mounted as it is needed by confirm_install() function
+    ensure_path_mounted(get_primary_storage_path());
+    set_ensure_mount_always_true(1);
+
     ui_print_preset_colors(1, NULL);
     ui_print("Verifying md5sum...\n");
+
     pthread_create(&tmd5_verify, NULL, &md5_verify_thread, filepath);
 }
 
@@ -820,7 +828,9 @@ void stop_md5_verify_thread() {
     ui_print_preset_colors(0, NULL);
     if (pthread_kill(tmd5_verify, 0) != ESRCH)
         ui_print("Cancelling md5 check...\n");
+
     pthread_join(tmd5_verify, NULL);
+    set_ensure_mount_always_true(0);
 }
 // ------- End md5sum display
 
@@ -3723,7 +3733,9 @@ void show_philz_settings_menu()
                 ui_print(EXPAND(RECOVERY_MOD_VERSION) "\n");
                 ui_print("Build version: " EXPAND(PHILZ_BUILD) " - " EXPAND(TARGET_COMMON_NAME) "\n");
                 ui_print("CWM Base version: " EXPAND(CWM_BASE_VERSION) "\n");
+#ifdef PHILZ_TOUCH_RECOVERY
                 print_libtouch_version(1);
+#endif
                 //ui_print(EXPAND(BUILD_DATE)"\n");
                 ui_print("Compiled %s at %s\n", __DATE__, __TIME__);
                 break;
