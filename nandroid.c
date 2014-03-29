@@ -91,9 +91,9 @@ static int nandroid_files_count = 0;
 static void nandroid_callback(const char* filename) {
     if (filename == NULL)
         return;
-    const char* justfile = BaseName(filename);
+
     char tmp[PATH_MAX];
-    strcpy(tmp, justfile);
+    sprintf(tmp, "%s", BaseName(filename));
     if (tmp[strlen(tmp) - 1] == '\n')
         tmp[strlen(tmp) - 1] = '\0';
     tmp[ui_get_text_cols() - 1] = '\0';
@@ -486,7 +486,9 @@ int nandroid_backup_partition(const char* backup_path, const char* root) {
             strcmp(vol->fs_type, "bml") == 0 ||
             strcmp(vol->fs_type, "emmc") == 0) {
         ui_print("\n>> Backing up %s...\n", root);
-        const char* name = BaseName(root);
+
+        char name[PATH_MAX];
+        sprintf(name, "%s", BaseName(root));
         if (strcmp(backup_path, "-") == 0)
             strcpy(tmp, "/proc/self/fd/1");
         else if (twrp_backup_mode.value)
@@ -623,7 +625,8 @@ int nandroid_backup(const char* backup_path) {
     vol = volume_for_path("/efs");
     if (backup_efs && vol != NULL) {
         //first backup in raw format, returns 0 on success (or if skipped), else 1
-        if (0 != dd_raw_backup_handler(DirName(backup_path), "/efs"))
+        sprintf(tmp, "%s", DirName(backup_path));
+        if (0 != dd_raw_backup_handler(tmp, "/efs"))
             ui_print("EFS raw image backup failed! Trying native backup...\n");
 
         //second backup in native cwm format
@@ -661,14 +664,8 @@ int nandroid_backup(const char* backup_path) {
             return ret;
     }
 
-    if (enable_md5sum.value) {
-        ui_print("Generating md5 sum...\n");
-        sprintf(tmp, "nandroid-md5.sh %s", backup_path);
-        if (0 != (ret = __system(tmp))) {
-            ui_print("Error while generating md5 sum!\n");
-            return ret;
-        }
-    }
+    if (enable_md5sum.value && 0 != (ret = gen_nandroid_md5sum(backup_path)))
+        return ret;
 
     sprintf(tmp, "cp /tmp/recovery.log %s/recovery.log", backup_path);
     __system(tmp);
@@ -870,7 +867,8 @@ static nandroid_restore_handler get_restore_handler(const char *backup_path) {
 
 int nandroid_restore_partition_extended(const char* backup_path, const char* mount_point, int umount_when_finished) {
     int ret = 0;
-    char* name = BaseName(mount_point);
+    char name[PATH_MAX];
+    sprintf(name, "%s", BaseName(mount_point));
 
     nandroid_restore_handler restore_handler = NULL;
     const char *filesystems[] = { "yaffs2", "ext2", "ext3", "ext4", "vfat", "exfat", "rfs", "f2fs", NULL };
@@ -1033,7 +1031,7 @@ int nandroid_restore_partition_extended(const char* backup_path, const char* mou
         LOGE("skipping restore of selinux context\n");
     } else if (0 == strcmp(mount_point, "/data") || 0 == strcmp(mount_point, "/system") || 0 == strcmp(mount_point, "/cache")) {
             ui_print("restoring selinux context...\n");
-            name = BaseName(mount_point);
+            sprintf(name, "%s", BaseName(mount_point));
             sprintf(tmp, "%s/%s.context", backup_path, name);
             if ((ret = restorecon_from_file(tmp)) < 0) {
                 ui_print("restorecon from %s.context error, trying regular restorecon.\n", name);
@@ -1066,7 +1064,8 @@ int nandroid_restore_partition(const char* backup_path, const char* root) {
     if (strcmp(vol->fs_type, "mtd") == 0 || strcmp(vol->fs_type, "bml") == 0 || strcmp(vol->fs_type, "emmc") == 0) {
         ui_print("\n>> Restoring %s...\nUsing raw mode...\n", root);
         int ret;
-        const char* name = BaseName(root);
+        char name[PATH_MAX];
+        sprintf(name, "%s", BaseName(root));
 
         // fix partition could be formatted when no image to restore
         // exp: if md5 check disabled and empty backup folder
@@ -1111,11 +1110,8 @@ int nandroid_restore(const char* backup_path, int restore_boot, int restore_syst
         return print_and_error("Can't mount backup path\n");
 
     char tmp[PATH_MAX];
-    if (enable_md5sum.value) {
-        ui_print("Checking MD5 sums...\n");
-        sprintf(tmp, "cd %s && md5sum -c nandroid.md5", backup_path);
-        if (0 != __system(tmp))
-            return print_and_error("MD5 mismatch!\n");
+    if (enable_md5sum.value && verify_nandroid_md5sum(backup_path) != 0) {
+        return print_and_error("MD5 verification failed!\n");
     }
 
     int ret;
@@ -1483,7 +1479,7 @@ int restorecon_recursive(const char *pathname, const char *exclude) {
         if (strncmp(pathname, exclude, strlen(exclude)) == 0)
             return 0;
     }
-    if (selinux_android_restorecon(pathname) < 0) {
+    if (selinux_android_restorecon(pathname, 0) < 0) {
         LOGW("restorecon: error restoring %s context\n", pathname);
         ret = 1;
     }

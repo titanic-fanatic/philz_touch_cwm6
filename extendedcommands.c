@@ -52,8 +52,6 @@
 #include "libtouch_gui/gui_settings.h"
 #endif
 
-int check_update_binary_version = 1;
-
 int get_filtered_menu_selection(const char** headers, char** items, int menu_only, int initial_selection, int items_count) {
     int index;
     int offset = 0;
@@ -87,17 +85,21 @@ int get_filtered_menu_selection(const char** headers, char** items, int menu_onl
     return ret;
 }
 
-void write_string_to_file(const char* filename, const char* string) {
-    ensure_path_mounted(filename);
+int write_string_to_file(const char* filename, const char* string) {
     char tmp[PATH_MAX];
+    int ret = -1;
+
+    ensure_path_mounted(filename);
     sprintf(tmp, "mkdir -p $(dirname %s)", filename);
     __system(tmp);
     FILE *file = fopen(filename, "w");
     if (file != NULL) {
-        fprintf(file, "%s", string);
+        ret = fprintf(file, "%s", string);
         fclose(file);
     } else
         LOGE("Cannot write to %s\n", filename);
+
+    return ret;
 }
 
 void write_recovery_version() {
@@ -210,7 +212,7 @@ int install_zip(const char* packagefilepath) {
 // top fixed menu items, those before extra storage volumes
 #define FIXED_TOP_INSTALL_ZIP_MENUS 1
 // bottom fixed menu items, those after extra storage volumes
-#define FIXED_BOTTOM_INSTALL_ZIP_MENUS 8
+#define FIXED_BOTTOM_INSTALL_ZIP_MENUS 7
 #define FIXED_INSTALL_ZIP_MENUS (FIXED_TOP_INSTALL_ZIP_MENUS + FIXED_BOTTOM_INSTALL_ZIP_MENUS)
 
 int show_install_update_menu() {
@@ -269,15 +271,13 @@ int show_install_update_menu() {
     // FIXED_BOTTOM_INSTALL_ZIP_MENUS
     char item_toggle_signature_check[MENU_MAX_COLS] = "";
     char item_install_zip_verify_md5[MENU_MAX_COLS] = "";
-    char item_check_update_binary_version[MENU_MAX_COLS] = "";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes]     = "Choose zip Using Free Browse Mode";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 1] = "Choose zip from Last Install Folder";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 2] = "Install zip from sideload";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 3] = "Install Multiple zip Files";
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 4] = item_toggle_signature_check;
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5] = item_install_zip_verify_md5;
-    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 6] = item_check_update_binary_version;
-    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 7] = "Setup Free Browse Mode";
+    install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 6] = "Setup Free Browse Mode";
 
     // extra NULL for GO_BACK
     install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + FIXED_BOTTOM_INSTALL_ZIP_MENUS] = NULL;
@@ -290,10 +290,6 @@ int show_install_update_menu() {
         if (install_zip_verify_md5.value)
             ui_format_gui_menu(item_install_zip_verify_md5, "Verify zip md5sum", "(x)");
         else ui_format_gui_menu(item_install_zip_verify_md5, "Verify zip md5sum", "( )");
-
-        if (check_update_binary_version)
-            ui_format_gui_menu(item_check_update_binary_version, "Allow Old update-binary", "( )");
-        else ui_format_gui_menu(item_check_update_binary_version, "Allow Old update-binary", "(x)");
 
         chosen_item = get_menu_selection(headers, install_menu_items, 0, 0);
         if (chosen_item == 0) {
@@ -318,12 +314,6 @@ int show_install_update_menu() {
         } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 5) {
             toggle_install_zip_verify_md5();
         } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 6) {
-            check_update_binary_version ^= 1;
-            if (!check_update_binary_version) {
-                ui_print("Try fixing some assert errors\n");
-                ui_print("Setting will be reset on reboot\n");
-            }
-        } else if (chosen_item == FIXED_TOP_INSTALL_ZIP_MENUS + num_extra_volumes + 7) {
             set_custom_zip_path();
         } else {
             // GO_BACK or REFRESH (chosen_item < 0)
@@ -354,7 +344,7 @@ void free_string_array(char** array) {
 
 int strcmpi(const char *, const char *);
 
-char** gather_files(const char* directory, const char* fileExtensionOrDirectory, int* numFiles) {
+char** gather_files(const char* basedir, const char* fileExtensionOrDirectory, int* numFiles) {
     char path[PATH_MAX] = "";
     DIR *dir;
     struct dirent *de;
@@ -363,7 +353,15 @@ char** gather_files(const char* directory, const char* fileExtensionOrDirectory,
     char** files = NULL;
     int pass;
     *numFiles = 0;
-    int dirLen = strlen(directory);
+    int dirLen = strlen(basedir);
+    char directory[PATH_MAX];
+
+    // Append a trailing slash if necessary
+    strcpy(directory, basedir);
+    if (directory[dirLen - 1] != '/') {
+        strcat(directory, "/");
+        ++dirLen;
+    }
 
     dir = opendir(directory);
     if (dir == NULL) {
@@ -643,7 +641,8 @@ void show_choose_zip_menu(const char *mount_point) {
 
     if (yes_confirm) {
         install_zip(file);
-        write_last_install_path(DirName(file));
+        sprintf(tmp, "%s", DirName(file));
+        write_last_install_path(tmp);
     }
 
     free(file);
@@ -676,18 +675,20 @@ void show_nandroid_delete_menu(const char* volume_path) {
     }
 
     static const char* headers[] = { "Choose a backup to delete", NULL };
+    char path[PATH_MAX];
     char tmp[PATH_MAX];
+    char* file;
 
     if (twrp_backup_mode.value) {
         char device_id[PROPERTY_VALUE_MAX];
         get_device_id(device_id);
-        sprintf(tmp, "%s/%s/%s", volume_path, TWRP_BACKUP_PATH, device_id);
+        sprintf(path, "%s/%s/%s", volume_path, TWRP_BACKUP_PATH, device_id);
     } else {
-        sprintf(tmp, "%s/%s", volume_path, CWM_BACKUP_PATH);    
+        sprintf(path, "%s/%s", volume_path, CWM_BACKUP_PATH);    
     }
 
     for(;;) {
-        char* file = choose_file_menu(tmp, NULL, headers);
+        file = choose_file_menu(path, NULL, headers);
         if (file == NULL)
             return;
 
