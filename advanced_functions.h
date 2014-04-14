@@ -60,6 +60,9 @@ char* DirName(const char* path);
 // case insensitive C-string compare (adapted from titanic-fanatic)
 int strcmpi(const char *str1, const char *str2);
 
+// String replace
+char *strrepl(const char *, const char *, const char *);
+
 // calculate md5sum when installing zip files from menu
 void start_md5_display_thread(char* filepath);
 void stop_md5_display_thread();

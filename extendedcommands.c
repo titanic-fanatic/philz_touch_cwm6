@@ -342,8 +342,6 @@ void free_string_array(char** array) {
     free(array);
 }
 
-int strcmpi(const char *, const char *);
-
 char** gather_files(const char* basedir, const char* fileExtensionOrDirectory, int* numFiles) {
     DIR *dir;
     struct dirent *de;
@@ -461,22 +459,6 @@ char** gather_files(const char* basedir, const char* fileExtensionOrDirectory, i
     return files;
 }
 
-/* case insensitive C-string compare */
-int strcmpi(const char *s1, const char *s2) {
-    char *s1_p = (char *)s1, *s2_p = (char *)s2;
-    while ((tolower((int)(*s1_p)) == tolower((int)(*s2_p))) && (*s1_p != '\0')) {
-        ++s1_p; ++s2_p;
-    }
-    if (*s1_p == '\0') {
-        return 0;
-    } else {
-        int c1 = tolower((int)*s1_p), c2 = tolower((int)*s2_p);
-        return (c1 < c2) ? -1 : +1;
-    }
-}
-
-char *strrepl(const char *, const char *, const char *);
-
 // pass in NULL for fileExtensionOrDirectory and you will get a directory chooser
 int no_files_found = 0;
 char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory, const char* headers[]) {
@@ -581,36 +563,6 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     free_string_array(files);
     free_string_array(dirs);
     return return_value;
-}
-
-char *strrepl(const char *str, const char *old, const char *new) {
-    char *ret, *r;
-	const char *p, *q;
-	size_t oldlen = strlen(old);
-	size_t count, retlen, newlen = strlen(new);
-
-	if (oldlen != newlen) {
-		for (count = 0, p = str; (q = strstr(p, old)) != NULL; p = q + oldlen)
-			count++;
-		/* this is undefined if p - str > PTRDIFF_MAX */
-		retlen = p - str + strlen(p) + count * (newlen - oldlen);
-	} else
-		retlen = strlen(str);
-
-	if ((ret = malloc(retlen + 1)) == NULL)
-		return NULL;
-
-	for (r = ret, p = str; (q = strstr(p, old)) != NULL; p = q + oldlen) {
-		/* this is undefined if q - p > PTRDIFF_MAX */
-		ptrdiff_t l = q - p;
-		memcpy(r, p, l);
-		r += l;
-		memcpy(r, new, newlen);
-		r += newlen;
-	}
-	strcpy(r, p);
-
-	return ret;
 }
 
 void show_choose_zip_menu(const char *mount_point) {
