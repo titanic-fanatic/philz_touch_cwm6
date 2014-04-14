@@ -160,16 +160,16 @@ static void toggle_loki_support() {
 // this is called when we load recovery settings
 // it is needed when after recovery is booted, user wipes /data, then he installs a ROM: we can still return the user setting 
 int loki_support_enabled() {
-    char device_supports_loki[PROPERTY_VALUE_MAX];
+    char no_loki_variant[PROPERTY_VALUE_MAX];
     int ret = -1;
 
-    property_get("ro.loki_enabled", device_supports_loki, "0");
-    if (strcmp(device_supports_loki, "1") == 0) {
+    property_get("ro.loki_disabled", no_loki_variant, "0");
+    if (strcmp(no_loki_variant, "0") == 0) {
         // device variant supports loki: check if user enabled it
         // if there is no settings file (read_config_file() < 0), it could be we have wiped /data before installing zip
         // in that case, return current value (we last loaded on start or when user last set it) and not default
-        if (read_config_file(PHILZ_SETTINGS_FILE, apply_loki_patch.key, device_supports_loki, "1") >= 0) {
-            if (strcmp(device_supports_loki, "false") == 0 || strcmp(device_supports_loki, "0") == 0)
+        if (read_config_file(PHILZ_SETTINGS_FILE, apply_loki_patch.key, no_loki_variant, "0") >= 0) {
+            if (strcmp(no_loki_variant, "true") == 0 || strcmp(no_loki_variant, "1") == 0)
                 apply_loki_patch.value = 0;
             else
                 apply_loki_patch.value = 1;
@@ -345,7 +345,6 @@ void free_string_array(char** array) {
 int strcmpi(const char *, const char *);
 
 char** gather_files(const char* basedir, const char* fileExtensionOrDirectory, int* numFiles) {
-    char path[PATH_MAX] = "";
     DIR *dir;
     struct dirent *de;
     int total = 0;
@@ -373,7 +372,6 @@ char** gather_files(const char* basedir, const char* fileExtensionOrDirectory, i
     if (fileExtensionOrDirectory != NULL)
         extension_length = strlen(fileExtensionOrDirectory);
 
-    int isCounting = 1;
     i = 0;
     for (pass = 0; pass < 2; pass++) {
         while ((de = readdir(dir)) != NULL) {
@@ -2072,10 +2070,6 @@ int verify_root_and_recovery() {
     if (ensure_path_mounted("/system") != 0)
         return 0;
 
-    // none of these options should get a "Go Back" option
-    int old_val = ui_get_showing_back_button();
-    ui_set_showing_back_button(0);
-
     int ret = 0;
     struct stat st;
     // check to see if install-recovery.sh is going to clobber recovery
@@ -2107,7 +2101,7 @@ int verify_root_and_recovery() {
 
     int exists = 0;
     if (0 == lstat("/system/bin/su", &st)) {
-        exists = 1;
+        exists += 1;
         if (needs_suid && S_ISREG(st.st_mode)) {
             if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
@@ -2120,7 +2114,7 @@ int verify_root_and_recovery() {
     }
 
     if (0 == lstat("/system/xbin/su", &st)) {
-        exists = 1;
+        exists += 1;
         if (needs_suid && S_ISREG(st.st_mode)) {
             if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
@@ -2132,15 +2126,15 @@ int verify_root_and_recovery() {
         }
     }
 
-    if (!exists) {
+    // If we have no root (exists == 0) or we have two su instances (exists == 2), prompt to properly root the device
+    if (exists != 1) {
         ui_show_text(1);
-        if (confirm_selection("Root access is missing. Root device?", "Yes - Root device (/system/xbin/su)")) {
+        if (confirm_selection("Root access is missing/broken. Root device?", "Yes - Apply root (/system/xbin/su)")) {
             __system("/sbin/install-su.sh");
             ret = 2;
         }
     }
 
     ensure_path_unmounted("/system");
-    ui_set_showing_back_button(old_val);
     return ret;
 }
