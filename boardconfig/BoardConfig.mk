@@ -46,13 +46,34 @@
 #   - BOARD_HAS_NO_FB2PNG := true
 #                               define this to disable fb2png support and spare some space (do not use screen capture)
 #   - BOARD_USE_NTFS_3G := false
-#                               will not include ntfs-3g binary to format and mount NTFS partitions.
+#                               will not include ntfs-3g binary to format and mount NTFS partitions. This can spare about 300kb space
 #                               devices using NTFS kernel modules will still be able to mount NTFS but not format to NTFS
+#
+#   - BOARD_RECOVERY_USE_BBTAR := true
+#                               spare some space and use busybox tar rather than standalone minitar binary
+#                               busybox tar cannot currently backup/restore selinux labels
+#
 
+#Amazon Kindle Fire HD 8.9 (jem)
+ifeq ($(TARGET_PRODUCT), cm_jem)
+    TARGET_COMMON_NAME := Kindle Fire HD 8.9
+    TARGET_SCREEN_HEIGHT := 1200
+    TARGET_SCREEN_WIDTH := 1920
+    RECOVERY_TOUCHSCREEN_SWAP_XY := true
+    RECOVERY_TOUCHSCREEN_FLIP_X := true
+    BRIGHTNESS_SYS_FILE := "/sys/class/backlight/bowser/brightness"
+    BATTERY_LEVEL_PATH := "/sys/class/power_supply/bq27541/capacity"
 
+#Amazon Kindle Fire HD 7 (tate)
+else ifeq ($(TARGET_PRODUCT), cm_tate)
+    TARGET_COMMON_NAME := Kindle Fire HD 7
+    TARGET_SCREEN_HEIGHT := 1280
+    TARGET_SCREEN_WIDTH := 800
+    BRIGHTNESS_SYS_FILE := "/sys/class/backlight/lcd-backlight/brightness"
+    BATTERY_LEVEL_PATH := "/sys/class/power_supply/bq27541/capacity"
 
 #Asus Transformer Pad TF300T (tf300t)
-ifeq ($(TARGET_PRODUCT), cm_tf300t)
+else ifeq ($(TARGET_PRODUCT), cm_tf300t)
     TARGET_COMMON_NAME := Asus Transformer TF300T
     BOARD_USE_NTFS_3G := false
     TARGET_SCREEN_HEIGHT := 1280
@@ -411,9 +432,19 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_serranoltexx cm_serrano3gxx cm_serrano
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Galaxy S5 i9605 Qualcomm variants (klte): kltecan kltespr kltetmo kltevzw kltexx
+#Galaxy S5 SM-G900F Qualcomm variants (klte): kltecan kltespr kltetmo kltevzw kltexx
 else ifeq ($(TARGET_PRODUCT), cm_klte)
     TARGET_COMMON_NAME := Galaxy S5 ($(TARGET_PRODUCT))
+    BOOTLOADER_CMD_ARG := "download"
+    KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_SCREEN_HEIGHT := 1920
+    TARGET_SCREEN_WIDTH := 1080
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+    BOARD_USE_B_SLOT_PROTOCOL := true
+
+#Galaxy S5 SM-G900H Exynos variant (k3gxx)
+else ifeq ($(TARGET_PRODUCT), cm_k3gxx)
+    TARGET_COMMON_NAME := Galaxy S5 SM-G900H
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
     TARGET_SCREEN_HEIGHT := 1920
@@ -645,7 +676,7 @@ else ifeq ($(TARGET_PRODUCT), cm_vigor)
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
 #HTC One M8 (m8)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_m8 cm_m8spr cm_m8att),)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_m8 cm_m8spr cm_m8vzw cm_m8att),)
     TARGET_COMMON_NAME := HTC One M8 ($(TARGET_PRODUCT))
     KERNEL_EXFAT_MODULE_NAME := "texfat"
     TARGET_SCREEN_HEIGHT := 1920
@@ -665,6 +696,15 @@ else ifeq ($(TARGET_PRODUCT), cm_viva)
     TARGET_SCREEN_HEIGHT := 960
     TARGET_SCREEN_WIDTH := 540
     BRIGHTNESS_SYS_FILE := "/sys/class/backlight/lcd/brightness"
+
+#LG Optimus One P500 (p500) - armv6
+else ifeq ($(TARGET_PRODUCT), cm_p500)
+    TARGET_COMMON_NAME := Optimus One P500
+    BOARD_USE_NTFS_3G := false
+    TARGET_SCREEN_HEIGHT := 480
+    TARGET_SCREEN_WIDTH := 320
+    BOARD_HAS_LOW_RESOLUTION := true
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
 #LG Optimus G ATT (e970) - Canada (e973) - Sprint (ls970) - Intl (e975)
 else ifneq ($(filter $(TARGET_PRODUCT),cm_e970 cm_e973 cm_ls970 cm_e975),)
@@ -714,6 +754,15 @@ else ifeq ($(TARGET_PRODUCT), cm_p880)
     TARGET_COMMON_NAME := Optimus 4X HD P880
     TARGET_SCREEN_HEIGHT := 1280
     TARGET_SCREEN_WIDTH := 720
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+
+#LG Optimus L5 E610 (e610)
+else ifeq ($(TARGET_PRODUCT), cm_e610)
+    TARGET_COMMON_NAME := Optimus L5 E610
+    BOARD_USE_CUSTOM_RECOVERY_FONT := \"font_10x18.h\"
+    TARGET_SCREEN_HEIGHT := 480
+    TARGET_SCREEN_WIDTH := 320
+    BOARD_HAS_LOW_RESOLUTION := true
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
 
 #LG Optimus L7 P700 (p700)
@@ -894,9 +943,6 @@ else ifeq ($(TARGET_PRODUCT), cm_nex)
 
 endif
 #---- end device specific config
-
-# temporary workaround to backup/restore selinux context, thanks to @xiaolu
-RECOVERY_NEED_SELINUX_FIX := true
 
 # The below flags must always be defined as default in BoardConfig.mk, unless defined above:
 # device name to display in About dialog

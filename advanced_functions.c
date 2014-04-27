@@ -965,7 +965,7 @@ int read_config_file(const char* config_file, const char *key, char *value, cons
     ensure_path_mounted(config_file);
     FILE *fp = fopen(config_file, "rb");
     if (fp != NULL) {
-        while(fgets(line, sizeof(line), fp) != NULL) {
+        while (fgets(line, sizeof(line), fp) != NULL) {
             if (strstr(line, key) != NULL && strncmp(line, key, strlen(key)) == 0 && line[strlen(key)] == '=') {
                 strcpy(value, strstr(line, "=") + 1);
                 if (value[strlen(value)-1] == '\n')
@@ -1023,18 +1023,18 @@ int write_config_file(const char* config_file, const char* key, const char* valu
         };
 
         int i;
-        for(i=0; header[i] != NULL; i++) {
+        for(i = 0; header[i] != NULL; i++) {
             fwrite(header[i], 1, strlen(header[i]), f_tmp);
         }
     } else {
         // parse existing config file and write new temporary file.
         char line[PROPERTY_VALUE_MAX];
-        while(fgets(line, sizeof(line), fp) != NULL) {
+        while (fgets(line, sizeof(line), fp) != NULL) {
             // ignore any existing line with key we want to set
             if (strstr(line, key) != NULL && strncmp(line, key, strlen(key)) == 0 && line[strlen(key)] == '=')
                 continue;
             // ensure trailing \n, in case some one got a bad editor...
-            if (line[strlen(line)-1] != '\n')
+            if (line[strlen(line) - 1] != '\n')
                 strcat(line, "\n");
             fwrite(line, 1, strlen(line), f_tmp);
         }
@@ -1047,7 +1047,7 @@ int write_config_file(const char* config_file, const char* key, const char* valu
     fwrite(new_entry, 1, strlen(new_entry), f_tmp);
     fclose(f_tmp);
 
-    if (rename(config_file_tmp, config_file) !=0) {
+    if (rename(config_file_tmp, config_file) != 0) {
         LOGE("failed to rename temporary settings file!\n");
         return -1;
     }
@@ -1163,8 +1163,8 @@ void show_multi_flash_menu() {
         list[numFiles+2] = NULL; // Go Back Menu
 
         int i;
-        for(i=2; i < numFiles+2; i++) {
-            list[i] = strdup(files[i-2] + dir_len - 4);
+        for(i = 2; i < numFiles + 2; i++) {
+            list[i] = strdup(files[i - 2] + dir_len - 4);
             strncpy(list[i], "(x) ", 4);
         }
 
@@ -1179,7 +1179,7 @@ void show_multi_flash_menu() {
             if (chosen_item == 0) {
                 // select / unselect all
                 select_all ^= 1;
-                for(i=2; i < numFiles+2; i++) {
+                for(i = 2; i < numFiles + 2; i++) {
                     if (select_all) strncpy(list[i], "(x)", 3);
                     else strncpy(list[i], "( )", 3);
                 }
@@ -1195,12 +1195,12 @@ void show_multi_flash_menu() {
             char confirm[PATH_MAX];
             sprintf(confirm, "Yes - Install from %s", BaseName(zip_folder));
             if (confirm_selection("Install selected files?", confirm)) {
-                for(i=2; i < numFiles+2; i++) {
+                for(i = 2; i < numFiles + 2; i++) {
                     if (strncmp(list[i], "(x)", 3) == 0) {
 #ifdef PHILZ_TOUCH_RECOVERY
                         force_wait = -1;
 #endif
-                        if (install_zip(files[i-2]) != 0)
+                        if (install_zip(files[i - 2]) != 0)
                             break;
                     }
                 }
@@ -1938,9 +1938,6 @@ void misc_nandroid_menu() {
     char item_prompt_low_space[MENU_MAX_COLS];
     char item_ors_path[MENU_MAX_COLS];
     char item_compress[MENU_MAX_COLS];
-#ifdef RECOVERY_NEED_SELINUX_FIX
-    char item_secontext[MENU_MAX_COLS];
-#endif
 
     char* list[] = {
         item_md5,
@@ -1954,19 +1951,13 @@ void misc_nandroid_menu() {
         item_compress,
         "Default Backup Format...",
         "Regenerate md5 Sum",
-#ifdef RECOVERY_NEED_SELINUX_FIX
-        item_secontext,
-#endif
         NULL
     };
 
-    int nandroid_secontext;
     int hidenandprogress;
     char* primary_path = get_primary_storage_path();
     char hidenandprogress_file[PATH_MAX];
-    char ignore_nand_secontext_file[PATH_MAX];
     sprintf(hidenandprogress_file, "%s/%s", primary_path, NANDROID_HIDE_PROGRESS_FILE);
-    sprintf(ignore_nand_secontext_file, "%s/%s", primary_path, NANDROID_IGNORE_SELINUX_FILE);
 
     int fmt;
     for (;;) {
@@ -2019,13 +2010,6 @@ void misc_nandroid_menu() {
             else ui_format_gui_menu(item_compress, "Compression", TAR_GZ_DEFAULT_STR); // useless but to not make exceptions
         } else
             ui_format_gui_menu(item_compress, "Compression", "No");
-
-#ifdef RECOVERY_NEED_SELINUX_FIX
-        nandroid_secontext = !file_found(ignore_nand_secontext_file);
-        if (nandroid_secontext)
-            ui_format_gui_menu(item_secontext, "Process SE Context", "(x)");
-        else ui_format_gui_menu(item_secontext, "Process SE Context", "( )");
-#endif
 
         int chosen_item = get_filtered_menu_selection(headers, list, 0, 0, sizeof(list) / sizeof(char*));
         if (chosen_item == GO_BACK)
@@ -2119,15 +2103,6 @@ void misc_nandroid_menu() {
                 regenerate_md5_sum_menu();
                 break;
             }
-#ifdef RECOVERY_NEED_SELINUX_FIX
-            case 11: {
-                nandroid_secontext ^= 1;
-                if (nandroid_secontext)
-                    delete_a_file(ignore_nand_secontext_file);
-                else write_string_to_file(ignore_nand_secontext_file, "1");
-                break;
-            }
-#endif
         }
     }
 }
@@ -2208,11 +2183,11 @@ void set_custom_zip_path() {
     char** list = (char**) malloc((numDirs + 3) * sizeof(char*));
     list[0] = strdup("../");
     list[1] = strdup(">> Set current folder as default <<");
-    list[numDirs+2] = NULL; // Go Back Menu
+    list[numDirs + 2] = NULL; // Go Back Menu
 
     // populate list with current folders. Reserved list[0] for ../ to browse backward
-    for(i=2; i < numDirs+2; i++) {
-        list[i] = strdup(dirs[i-2] + dir_len);
+    for(i = 2; i < numDirs + 2; i++) {
+        list[i] = strdup(dirs[i - 2] + dir_len);
     }
 
     char custom_path2[PATH_MAX];
@@ -2328,18 +2303,18 @@ int show_custom_zip_menu() {
     total = numFiles + numDirs;
     char** list = (char**) malloc((total + 2) * sizeof(char*));
     list[0] = strdup("../");
-    list[total+1] = NULL;
+    list[total + 1] = NULL;
 
     // populate menu list with current folders and zip files. Reserved list[0] for ../ to browse backward
     //LOGE(">> Dirs (num=%d):\n", numDirs);
     int i;
-    for(i=1; i < numDirs+1; i++) {
-        list[i] = strdup(dirs[i-1] + dir_len);
+    for(i = 1; i < numDirs + 1; i++) {
+        list[i] = strdup(dirs[i - 1] + dir_len);
         //LOGE("list[%d]=%s\n", i, list[i]);
     }
     //LOGE("\n>> Files (num=%d):\n", numFiles);
-    for(i=1; i < numFiles+1; i++) {
-        list[numDirs+i] = strdup(files[i-1] + dir_len);
+    for(i = 1; i < numFiles + 1; i++) {
+        list[numDirs + i] = strdup(files[i - 1] + dir_len);
         //LOGE("list[%d]=%s\n", numDirs+i, list[numDirs+i]);
     }
 
@@ -2603,8 +2578,8 @@ void show_twrp_restore_menu(const char* backup_volume) {
     }
 
     static const char* headers[] = {
-            "Choose a backup to restore",
-            NULL
+        "Choose a backup to restore",
+        NULL
     };
 
     char device_id[PROPERTY_VALUE_MAX];
@@ -2875,7 +2850,7 @@ void custom_restore_menu(const char* backup_volume) {
         else ui_format_gui_menu(item_reboot, ">> Reboot once done", "( )");
         list[LIST_ITEM_REBOOT] = item_reboot;
 
-        if (volume_for_path("/boot") != NULL) {
+        if (volume_for_path(BOOT_PARTITION_MOUNT_POINT) != NULL) {
             if (backup_boot) ui_format_gui_menu(item_boot, "Restore boot", "(x)");
             else ui_format_gui_menu(item_boot, "Restore boot", "( )");
             list[LIST_ITEM_BOOT] = item_boot;
@@ -3137,7 +3112,7 @@ void custom_backup_menu(const char* backup_volume)
         else ui_format_gui_menu(item_reboot, ">> Reboot once done", "( )");
         list[LIST_ITEM_REBOOT] = item_reboot;
 
-        if (volume_for_path("/boot") != NULL) {
+        if (volume_for_path(BOOT_PARTITION_MOUNT_POINT) != NULL) {
             if (backup_boot) ui_format_gui_menu(item_boot, "Backup boot", "(x)");
             else ui_format_gui_menu(item_boot, "Backup boot", "( )");
             list[LIST_ITEM_BOOT] = item_boot;

@@ -705,9 +705,17 @@ int confirm_selection(const char* title, const char* confirm) {
     if (0 == stat(path, &info))
         return 1;
 
+#ifdef BOARD_NATIVE_DUALBOOT
+    char buf[PATH_MAX];
+    device_build_selection_title(buf, title);
+    title = (char*)&buf;
+#endif
+
     int many_confirm;
     char* confirm_str = strdup(confirm);
     const char* confirm_headers[] = { title, "  THIS CAN NOT BE UNDONE.", "", NULL };
+    int old_val = ui_is_showing_back_button();
+    ui_set_showing_back_button(0);
 
     sprintf(path, "%s/%s", get_primary_storage_path(), RECOVERY_MANY_CONFIRM_FILE);
     // ensure_path_mounted(path);
@@ -737,6 +745,7 @@ int confirm_selection(const char* title, const char* confirm) {
         ret = (chosen_item == 1);
     }
     free(confirm_str);
+    ui_set_showing_back_button(old_val);
     return ret;
 }
 
@@ -747,6 +756,10 @@ extern void reset_ext4fs_info();
 
 extern struct selabel_handle *sehandle;
 int format_device(const char *device, const char *path, const char *fs_type) {
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+    if(device_truedualboot_format_device(device, path, fs_type) <= 0)
+        return 0;
+#endif
     if (is_data_media_volume_path(path)) {
         return format_unknown_device(NULL, path, NULL);
     }
@@ -932,7 +945,7 @@ typedef struct {
 MFMatrix get_mnt_fmt_capabilities(char *fs_type, char *mount_point) {
     MFMatrix mfm = { mount_point, 1, 1 };
 
-    const int NUM_FS_TYPES = 5;
+    const int NUM_FS_TYPES = 6;
     MFMatrix *fs_matrix = malloc(NUM_FS_TYPES * sizeof(MFMatrix));
     // Defined capabilities:   fs_type     mnt fmt
     fs_matrix[0] = (MFMatrix){ "bml",       0,  1 };
@@ -940,6 +953,7 @@ MFMatrix get_mnt_fmt_capabilities(char *fs_type, char *mount_point) {
     fs_matrix[2] = (MFMatrix){ "emmc",      0,  1 };
     fs_matrix[3] = (MFMatrix){ "mtd",       0,  0 };
     fs_matrix[4] = (MFMatrix){ "ramdisk",   0,  0 };
+    fs_matrix[5] = (MFMatrix){ "swap",      0,  0 };
 
     const int NUM_MNT_PNTS = 6;
     MFMatrix *mp_matrix = malloc(NUM_MNT_PNTS * sizeof(MFMatrix));
@@ -1672,14 +1686,27 @@ void show_advanced_power_menu() {
 }
 
 #ifdef ENABLE_LOKI
-    #define FIXED_ADVANCED_ENTRIES 6
+
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+#define FIXED_ADVANCED_ENTRIES 8
 #else
-    #define FIXED_ADVANCED_ENTRIES 5
+#define FIXED_ADVANCED_ENTRIES 6
+#endif
+
+#else
+
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+#define FIXED_ADVANCED_ENTRIES 7
+#else
+#define FIXED_ADVANCED_ENTRIES 5
+#endif
+
 #endif
 
 int show_advanced_menu() {
     char buf[80];
-    int i = 0, j = 0, chosen_item = 0;
+    int i = 0, j = 0, chosen_item = 0, list_index = 0;
+    /* Default number of entries if no compile-time extras are added */
     static char* list[MAX_NUM_MANAGED_VOLUMES + FIXED_ADVANCED_ENTRIES + 1];
 
     char* primary_path = get_primary_storage_path();
@@ -1704,13 +1731,20 @@ int show_advanced_menu() {
 
     memset(list, 0, MAX_NUM_MANAGED_VOLUMES + FIXED_ADVANCED_ENTRIES + 1);
 
-    list[0] = "Wipe Dalvik Cache";
-    list[1] = "Report Error";
-    list[2] = "Key Test";
-    list[3] = "Show log";
-    list[4] = NULL;
+    list[list_index++] = "Wipe Dalvik Cache";   // 0
+    list[list_index++] = "Report Error";        // 1
+    list[list_index++] = "Key Test";            // 2
+    list[list_index++] = "Show log";            // 3
+    list[list_index++] = NULL;                  // 4 (/data/media/0 toggle)
+
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+    int index_tdb = list_index++;
+    int index_bootmode = list_index++;
+#endif
+
 #ifdef ENABLE_LOKI
-    list[5] = NULL;
+    int index_loki = list_index++;
+    list[index_loki] = NULL;
 #endif
     
     if (volume_labels_enabled.value)
@@ -1755,17 +1789,27 @@ int show_advanced_menu() {
             else list[4] = "Sdcard target: /data/media";
         }
 
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+        char tdb_name[PATH_MAX];
+        device_get_truedualboot_entry(tdb_name);
+        list[index_tdb] = &tdb_name;
+
+        char bootmode_name[PATH_MAX];
+        device_get_bootmode(bootmode_name);
+        list[index_bootmode] = &bootmode_name;
+#endif
+
 #ifdef ENABLE_LOKI
         char item_loki_toggle_menu[MENU_MAX_COLS];
         int enabled = loki_support_enabled();
         if (enabled < 0) {
-            list[5] = NULL;
+            list[index_loki] = NULL;
         } else {
             if (enabled)
                 ui_format_gui_menu(item_loki_toggle_menu, "Apply Loki Patch", "(x)");
             else
                 ui_format_gui_menu(item_loki_toggle_menu, "Apply Loki Patch", "( )");
-            list[5] = item_loki_toggle_menu;
+            list[index_loki] = item_loki_toggle_menu;
         }
 #endif
 
@@ -1825,14 +1869,26 @@ int show_advanced_menu() {
                 }
                 break;
             }
+            default:
+#ifdef BOARD_NATIVE_DUALBOOT_SINGLEDATA
+            if (chosen_item == index_tdb) {
+                device_toggle_truedualboot();
+                break;
+            }
+            if (chosen_item == index_bootmode) {
+                device_choose_bootmode();
+                break;
+            }
+#endif
+
 #ifdef ENABLE_LOKI
-            case 5:
+            if (chosen_item == index_loki) {
                 toggle_loki_support();
                 break;
+            }
 #endif
-            default:
-                partition_sdcard(list[chosen_item] + strlen(list_prefix));
-                break;
+            partition_sdcard(list[chosen_item] + strlen(list_prefix));
+            break;
         }
     }
 
@@ -2051,11 +2107,13 @@ int verify_root_and_recovery() {
     if (atoi(value) >= 18)
         needs_suid = 0;
 
-    int exists = 0;
+    int exists = 0; // su exists, regular file or symlink
+    int su_nums = 0; // su bin as regular file, not symlink
     if (0 == lstat("/system/bin/su", &st)) {
-        exists += 1;
-        if (needs_suid && S_ISREG(st.st_mode)) {
-            if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
+        exists = 1;
+        if (S_ISREG(st.st_mode)) {
+            su_nums += 1;
+            if (needs_suid && (st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
                 if (confirm_selection("Root access possibly lost. Fix?", "Yes - Fix root (/system/bin/su)")) {
                     __system("chmod 6755 /system/bin/su");
@@ -2066,9 +2124,10 @@ int verify_root_and_recovery() {
     }
 
     if (0 == lstat("/system/xbin/su", &st)) {
-        exists += 1;
-        if (needs_suid && S_ISREG(st.st_mode)) {
-            if ((st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
+        exists = 1;
+        if (S_ISREG(st.st_mode)) {
+            su_nums += 1;
+            if (needs_suid && (st.st_mode & (S_ISUID | S_ISGID)) != (S_ISUID | S_ISGID)) {
                 ui_show_text(1);
                 if (confirm_selection("Root access possibly lost. Fix?", "Yes - Fix root (/system/xbin/su)")) {
                     __system("chmod 6755 /system/xbin/su");
@@ -2079,7 +2138,7 @@ int verify_root_and_recovery() {
     }
 
     // If we have no root (exists == 0) or we have two su instances (exists == 2), prompt to properly root the device
-    if (exists != 1) {
+    if (!exists || su_nums != 1) {
         ui_show_text(1);
         if (confirm_selection("Root access is missing/broken. Root device?", "Yes - Apply root (/system/xbin/su)")) {
             __system("/sbin/install-su.sh");
