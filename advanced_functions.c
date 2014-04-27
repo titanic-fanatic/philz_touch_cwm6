@@ -2701,7 +2701,7 @@ static void custom_restore_handler(const char* backup_volume, const char* backup
             LOGE("no /radio partition to flash\n");
     } else {
         // process restore job
-        file = choose_file_menu(backup_path, "", headers);
+        file = choose_file_menu(backup_path, NULL, headers);
         if (file == NULL) {
             if (no_files_found)
                 ui_print("Nothing to restore in %s !\n", backup_path);
