@@ -2708,7 +2708,7 @@ static void custom_restore_handler(const char* backup_volume, const char* backup
             return;
         }
 
-        sprintf(backup_source, "%s", DirName(file));
+        sprintf(backup_source, "%s", file);
         ui_print("%s will be restored to selected partitions!\n", backup_source);
         sprintf(tmp, "Yes - Restore %s", BaseName(backup_source));
         if (confirm_selection(confirm_install, tmp)) {
