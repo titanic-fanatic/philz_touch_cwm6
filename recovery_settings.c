@@ -47,18 +47,18 @@
 #include "cutils/android_reboot.h"
 
 
-// Start initialize recovery key/value settings
-struct CWMSettingsIntValues auto_restore_settings = { "auto_restore_settings", 0};
-struct CWMSettingsIntValues check_root_and_recovery = { "check_root_and_recovery", 1};
-struct CWMSettingsIntValues apply_loki_patch = { "apply_loki_patch", 1};
-struct CWMSettingsIntValues twrp_backup_mode = { "twrp_backup_mode", 0};
-struct CWMSettingsIntValues compression_value = { "compression_value", TAR_GZ_DEFAULT};
-struct CWMSettingsIntValues nandroid_add_preload = { "nandroid_add_preload", 0};
-struct CWMSettingsIntValues enable_md5sum = { "enable_md5sum", 1};
-struct CWMSettingsIntValues show_nandroid_size_progress = { "show_nandroid_size_progress", 0};
-struct CWMSettingsIntValues use_nandroid_simple_logging = { "use_nandroid_simple_logging", 1};
-struct CWMSettingsIntValues nand_prompt_on_low_space = { "nand_prompt_on_low_space", 1};
-struct CWMSettingsIntValues signature_check_enabled = { "signature_check_enabled", 0};
+// touch recovery key/value settings are initialized in gui_settings.c
+struct CWMSettingsIntValues auto_restore_settings = { "auto_restore_settings", 0 };
+struct CWMSettingsIntValues check_root_and_recovery = { "check_root_and_recovery", 1 };
+struct CWMSettingsIntValues apply_loki_patch = { "apply_loki_patch", 1 };
+struct CWMSettingsIntValues twrp_backup_mode = { "twrp_backup_mode", 0 };
+struct CWMSettingsIntValues compression_value = { "compression_value", TAR_GZ_DEFAULT };
+struct CWMSettingsIntValues nandroid_add_preload = { "nandroid_add_preload", 0 };
+struct CWMSettingsIntValues enable_md5sum = { "enable_md5sum", 1 };
+struct CWMSettingsIntValues show_nandroid_size_progress = { "show_nandroid_size_progress", 0 };
+struct CWMSettingsIntValues use_nandroid_simple_logging = { "use_nandroid_simple_logging", 1 };
+struct CWMSettingsIntValues nand_prompt_on_low_space = { "nand_prompt_on_low_space", 1 };
+struct CWMSettingsIntValues signature_check_enabled = { "signature_check_enabled", 0 };
 struct CWMSettingsIntValues install_zip_verify_md5 = { "install_zip_verify_md5", 0 };
 struct CWMSettingsIntValues volume_labels_enabled = { "volume_labels_enabled", 0};
 struct CWMSettingsIntValues directory_sort_insensitive = { "directory_sort_insensitive", 0};
@@ -72,6 +72,9 @@ struct CWMSettingsCharValues user_zip_folder = { "user_zip_folder", "" };
 
 //----- End initialize recovery key/value settings
 
+
+// pass in compiler flags to libtouch_gui
+#ifdef PHILZ_TOUCH_RECOVERY
 
 #ifdef BOARD_HAS_LOW_RESOLUTION
 #define board_has_low_resolution        1
@@ -113,6 +116,7 @@ struct CWMSettingsCharValues user_zip_folder = { "user_zip_folder", "" };
 #define BOARD_POST_UNBLANK_COMMAND      ""
 #endif
 
+// initialize the libtouch flags
 struct CompilerFlagsUI libtouch_flags = {
     CHAR_HEIGHT,
     CHAR_WIDTH,
@@ -126,7 +130,7 @@ struct CompilerFlagsUI libtouch_flags = {
     BATTERY_LEVEL_PATH,
     BOARD_POST_UNBLANK_COMMAND
 };
-
+#endif // PHILZ_TOUCH_RECOVERY
 
 /***********************************/
 /*                                 */
@@ -134,6 +138,10 @@ struct CompilerFlagsUI libtouch_flags = {
 /*                                 */
 /***********************************/
 
+// On exiting recovery, check if there is a settings file
+// if not and we have a backup, prompts to restore settings
+// called when rebooting from recovery
+// exp: after success install of a new rom, before reboot, prompt to restore settings if they were wiped by installed ROM
 void verify_settings_file() {
     char backup_file[PATH_MAX];
     sprintf(backup_file, "%s/%s", get_primary_storage_path(), PHILZ_SETTINGS_BAK);
@@ -154,6 +162,7 @@ static void check_auto_restore_settings() {
         auto_restore_settings.value = 0;
 }
 
+// on recovery exit, check if we need to nag for root and recovery that could be messed up
 static void check_root_and_recovery_settings() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, check_root_and_recovery.key, value, "true");
@@ -181,6 +190,7 @@ static void check_directory_sort_settings() {
         directory_sort_insensitive.value = 1;
 }
 
+// refresh nandroid compression
 static void refresh_nandroid_compression() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, compression_value.key, value, TAR_GZ_DEFAULT_STR);
@@ -196,6 +206,7 @@ static void refresh_nandroid_compression() {
         compression_value.value = TAR_GZ_DEFAULT;
 }
 
+// check user setting for backup mode (TWRP vs CWM)
 static void check_backup_restore_mode() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, twrp_backup_mode.key, value, "false");
@@ -205,6 +216,7 @@ static void check_backup_restore_mode() {
         twrp_backup_mode.value = 0;
 }
 
+// check nandroid preload setting
 static void check_nandroid_preload() {
     if (volume_for_path("/preload") == NULL)
         return; // nandroid_add_preload.value = 0 by default on recovery start
@@ -217,6 +229,7 @@ static void check_nandroid_preload() {
         nandroid_add_preload.value = 0;
 }
 
+// check nandroid md5 sum
 static void check_nandroid_md5sum() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, enable_md5sum.key, value, "1");
@@ -226,6 +239,7 @@ static void check_nandroid_md5sum() {
         enable_md5sum.value = 1;
 }
 
+// check show nandroid size progress
 static void check_show_nand_size_progress() {
     char value_def[3] = "1";
 #ifdef BOARD_HAS_SLOW_STORAGE
@@ -239,6 +253,9 @@ static void check_show_nand_size_progress() {
         show_nandroid_size_progress.value = 1;
 }
 
+// check if we need simple logging during nandroid jobs
+// backup command progress (file names) will not be written to log file
+// logging is still written to screen
 static void check_nandroid_simple_logging() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, use_nandroid_simple_logging.key, value, "1");
@@ -248,6 +265,7 @@ static void check_nandroid_simple_logging() {
         use_nandroid_simple_logging.value = 1;
 }
 
+// check prompt on low backup space
 static void check_prompt_on_low_space() {
     char value_def[3] = "1";
     char value[PROPERTY_VALUE_MAX];
@@ -258,6 +276,8 @@ static void check_prompt_on_low_space() {
         nand_prompt_on_low_space.value = 1;
 }
 
+// check if we should verify signature during install of zip packages
+// only called on recovery start
 static void check_signature_check() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, signature_check_enabled.key, value, "0");
@@ -267,6 +287,7 @@ static void check_signature_check() {
         signature_check_enabled.value = 0;
 }
 
+// verify md5sum of zip file before they are installed
 static void check_install_zip_verify_md5() {
     char value[PROPERTY_VALUE_MAX];
     read_config_file(PHILZ_SETTINGS_FILE, install_zip_verify_md5.key, value, "0");
@@ -276,6 +297,7 @@ static void check_install_zip_verify_md5() {
         install_zip_verify_md5.value = 0;
 }
 
+// struct initializer for custom partitions to be supported in nandroid
 static void initialize_extra_partitions_state() {
     int i;
     for(i = 0; i < EXTRA_PARTITIONS_NUM; ++i) {
