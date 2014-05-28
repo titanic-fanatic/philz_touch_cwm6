@@ -500,7 +500,7 @@ int copy_a_file(const char* file_in, const char* file_out) {
         return -1;
     }
 
-    // this will chmod folder to 775
+    // this will chmod directory to 777
     char tmp[PATH_MAX];
     sprintf(tmp, "%s", DirName(file_out));
     ensure_directory(tmp);
@@ -518,7 +518,6 @@ int copy_a_file(const char* file_in, const char* file_out) {
 
     // start copy
     size_t size;
-    // unsigned int size;
     while ((size = fread(tmp, 1, sizeof(tmp), fp))) {
         fwrite(tmp, 1, size, fp_out);
     }
@@ -1171,6 +1170,14 @@ int write_config_file(const char* config_file, const char* key, const char* valu
         LOGE("failed to rename temporary settings file!\n");
         return -1;
     }
+
+    // if we are editing recovery settings file, create a second copy on primary storage
+    if (strcmp(PHILZ_SETTINGS_FILE, config_file) == 0) {
+        sprintf(tmp, "%s/%s", get_primary_storage_path(), PHILZ_SETTINGS_FILE2);
+        if (copy_a_file(config_file, tmp) != 0)
+            LOGE("failed duplicating settings file to primary storage!\n");
+    }
+
     LOGI("%s was set to %s\n", key, value);
     return 0;
 }
@@ -3824,8 +3831,10 @@ static void load_theme_settings() {
     if (theme_file == NULL)
         return;
 
-    if (confirm_selection("Overwrite default settings ?", "Yes - Apply New Theme") &&
-            copy_a_file(theme_file, PHILZ_SETTINGS_FILE) == 0) {
+    if (confirm_selection("Overwrite default settings ?", "Yes - Apply New Theme") && copy_a_file(theme_file, PHILZ_SETTINGS_FILE) == 0) {
+        char settings_copy[PATH_MAX];
+        sprintf(settings_copy, "%s/%s", get_primary_storage_path(), PHILZ_SETTINGS_FILE2);
+        copy_a_file(theme_file, settings_copy);
         refresh_recovery_settings(0);
         ui_print("loaded default settings from %s\n", BaseName(theme_file));
     }
@@ -3842,8 +3851,8 @@ static void import_export_settings() {
     };
 
     static char* list[] = {
-        "Save Default Settings to sdcard",
-        "Load Default Settings from sdcard",
+        "Backup Recovery Settings to sdcard",
+        "Restore Recovery Settings from sdcard",
         "Save Current Theme to sdcard",
         "Load Existing Theme from sdcard",
         "Delete Saved Themes",
@@ -3862,11 +3871,14 @@ static void import_export_settings() {
         switch (chosen_item) {
             case 0: {
                 if (copy_a_file(PHILZ_SETTINGS_FILE, backup_file) == 0)
-                    ui_print("config file successefully backed up to %s\n", backup_file);
+                    ui_print("config file successfully backed up to %s\n", backup_file);
                 break;
             }
             case 1: {
                 if (copy_a_file(backup_file, PHILZ_SETTINGS_FILE) == 0) {
+                    char settings_copy[PATH_MAX];
+                    sprintf(settings_copy, "%s/%s", get_primary_storage_path(), PHILZ_SETTINGS_FILE2);
+                    copy_a_file(backup_file, settings_copy);
                     refresh_recovery_settings(0);
                     ui_print("settings loaded from %s\n", backup_file);
                 }
@@ -3908,27 +3920,26 @@ static void import_export_settings() {
 
 void show_philz_settings_menu()
 {
-    static const char* headers[] = {  "PhilZ Settings",
-                                NULL
-    };
+    static const char* headers[] = {"PhilZ Settings", NULL};
 
     char item_check_root_and_recovery[MENU_MAX_COLS];
     char item_auto_restore[MENU_MAX_COLS];
     char item_volume_labels_enabled[MENU_MAX_COLS];
     char item_directory_sort_insensitive[MENU_MAX_COLS];
 
-    char* list[] = { "Open Recovery Script",
-                        "Aroma File Manager",
-                        "Re-root System (SuperSU)",
-                        item_check_root_and_recovery,
-                        item_auto_restore,
-                        "Save and Restore Settings",
-                        "Reset All Recovery Settings",
-                        "GUI Preferences",
-                        item_volume_labels_enabled,
-                        item_directory_sort_insensitive,
-                        "About",
-                         NULL
+    char* list[] = {
+        "Open Recovery Script",
+        "Aroma File Manager",
+        "Re-root System (SuperSU)",
+        item_check_root_and_recovery,
+        item_auto_restore,
+        "Save and Restore Settings",
+        "Reset All Recovery Settings",
+        "GUI Preferences",
+        item_volume_labels_enabled,
+        item_directory_sort_insensitive,
+        "About",
+        NULL
     };
 
     for (;;) {
@@ -4012,7 +4023,10 @@ void show_philz_settings_menu()
             }
             case 6: {
                 if (confirm_selection("Reset all recovery settings?", "Yes - Reset to Defaults")) {
+                    char settings_copy[PATH_MAX];
+                    sprintf(settings_copy, "%s/%s", get_primary_storage_path(), PHILZ_SETTINGS_FILE2);
                     delete_a_file(PHILZ_SETTINGS_FILE);
+                    delete_a_file(settings_copy);
                     refresh_recovery_settings(0);
                     ui_print("All settings reset to default!\n");
                 }
