@@ -4088,7 +4088,7 @@ void show_philz_settings_menu()
                 ui_print("Compiled %s at %s\n", __DATE__, __TIME__);
                 break;
             }
-            case 10:
+            case 10: {
                 char value[5];
                 volume_labels_enabled.value ^= 1;
                 sprintf(value, "%d", volume_labels_enabled.value);

@@ -270,8 +270,8 @@ else ifeq ($(TARGET_PRODUCT), cm_celoxhd)
     TARGET_SCREEN_WIDTH := 720
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
-    RECOVERY_PRIMARY_STORAGE_LABEL := "Internal sdcard"
-    RECOVERY_SECONDARY_STORAGE_LABEL := "External sdcard"
+    RECOVERY_PRIMARY_STORAGE_LABEL := "Internal SDCARD"
+    RECOVERY_SECONDARY_STORAGE_LABEL := "External SDCARD"
 
 #Samsung Exhilarate SGH-I577 (exhilarate)
 else ifeq ($(TARGET_PRODUCT), cm_exhilarate)
