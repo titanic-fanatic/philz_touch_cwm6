@@ -33,15 +33,6 @@
 #                               If detection succeeds, 'brightness_user_path' key is set to the brightness path in ini file
 #                               On next recovery starts, auto-detect is disabled when 'brightness_user_path' key exists
 #                               If BRIGHTNESS_SYS_FILE flag is defined during compile, you cannot change brightness path without recompiling recovery
-#   - EXTRA_PARTITIONS_PATH := "path" [optional], default is "extra_part"
-#                               This will override the default "/extra_part" mount point for extra partitions
-#                               in your fstab, partition mount point must be "/extra_part1", "/extra_part2",...., "/extra_part5"
-#                               you can add this way up to 5 special partitions for nandroid backup/restore custom jobs
-#                               this flag will just override the default "/extra_part". You still have to append a 1 to 5 digit to the name in fstab
-#                               exp: EXTRA_PARTITIONS_PATH := "/efs"
-#                               in recovery.fstab, we must put: /dev/block/xxx  /efs1   ext4    options
-#                                                               /dev/block/xxx  /efs2   ext4    options
-#                               up to 5 partitions:             /dev/block/xxx  /efs5   ext4    options
 #   - TW_USE_MODEL_HARDWARE_ID_FOR_DEVICE_ID := true
 #                               will force using ro.product.model as device id if available
 #                               you still need to enable a LOCAL_CFLAGS if defined
@@ -53,10 +44,21 @@
 #                               will not include ntfs-3g binary to format and mount NTFS partitions. This can spare about 300kb space
 #                               devices using NTFS kernel modules will still be able to mount NTFS but not format to NTFS
 #
-#   - BOARD_RECOVERY_USE_BBTAR := true
-#                               use busybox tar rather than standalone minitar binary (16kb space spare)
-#                               busybox tar cannot currently backup/restore selinux labels !
-#                               this will enable use of external selinux context container during backup/restore
+#   - BOARD_RECOVERY_USE_LIBTAR := true
+#                               link tar command to recovery libtar (minitar) rather than to busybox tar
+#
+#   - TARGET_USERIMAGES_USE_F2FS := true
+#                               enable f2fs support in recovery, include ext4 <-> f2fs data migration
+#                               this is an official CWM flag
+#
+#   - BOARD_HAS_NO_MULTIUSER_SUPPORT := true
+#                               Since Android 4.2, internal storage is located in /data/media/0 (multi user compatibility)
+#                               When upgrading to android 4.2, /data/media content is "migrated" to /data/media/0
+#                               By default, in recovery, we always use /data/media/0 unless /data/media/.cwm_force_data_media file is found
+#                               For devices with pre-4.2 android support, we can define BOARD_HAS_NO_MULTIUSER_SUPPORT flag
+#                               It will default to /data/media, unless /data/media/0 exists
+#                               In any case, user can toggle the storage path by create/delete the file /data/media/.cwm_force_data_media
+#                               This is achieved through the Advanced menu
 #
 
 #Amazon Kindle Fire HD 8.9 (jem)
@@ -318,6 +320,7 @@ else ifeq ($(TARGET_PRODUCT), cm_d2lte)
     TARGET_COMMON_NAME := $(TARGET_PRODUCT)
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_USERIMAGES_USE_F2FS := true
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
     TARGET_SCREEN_HEIGHT := 1280
     TARGET_SCREEN_WIDTH := 720
@@ -424,6 +427,7 @@ else ifeq ($(TARGET_PRODUCT), cm_jflte)
     TARGET_COMMON_NAME := i9505 ($(TARGET_PRODUCT))
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1920
     TARGET_SCREEN_WIDTH := 1080
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -491,23 +495,13 @@ else ifeq ($(TARGET_PRODUCT), cm_superior)
     BRIGHTNESS_SYS_FILE := "/sys/class/backlight/panel/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
 
-#Galaxy Mega I9205 (meliusltexx)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_meliusltexx),)
-    TARGET_COMMON_NAME := Galaxy Mega I9205
+#Galaxy Mega I9205 (meliusltexx) and i9200 (melius3gxx)
+else ifneq ($(filter $(TARGET_PRODUCT),cm_meliusltexx cm_melius3gxx),)
+    TARGET_COMMON_NAME := Galaxy Mega ($(TARGET_PRODUCT))
     BOOTLOADER_CMD_ARG := "download"
     KERNEL_EXFAT_MODULE_NAME := "exfat"
     TARGET_SCREEN_HEIGHT := 1280
     TARGET_SCREEN_WIDTH := 720
-    BRIGHTNESS_SYS_FILE := "/sys/class/lcd/panel/panel/brightness"
-    BOARD_USE_B_SLOT_PROTOCOL := true
-
-#Galaxy Mega i9200 (melius3gxx)
-else ifneq ($(filter $(TARGET_PRODUCT),cm_melius3gxx),)
-    TARGET_COMMON_NAME := Galaxy Mega i9200
-    BOOTLOADER_CMD_ARG := "download"
-    KERNEL_EXFAT_MODULE_NAME := "exfat"
-    TARGET_SCREEN_HEIGHT := 960
-    TARGET_SCREEN_WIDTH := 540
     BRIGHTNESS_SYS_FILE := "/sys/class/lcd/panel/panel/brightness"
     BOARD_USE_B_SLOT_PROTOCOL := true
 
@@ -566,7 +560,7 @@ else ifeq ($(TARGET_PRODUCT), cm_mako)
 #Google Nexus 5 (LGE) - hammerhead
 else ifeq ($(TARGET_PRODUCT), cm_hammerhead)
     TARGET_COMMON_NAME := Nexus 5
-    EXTRA_PARTITIONS_PATH := "/efs"
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1920
     TARGET_SCREEN_WIDTH := 1080
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -629,6 +623,7 @@ else ifeq ($(TARGET_PRODUCT), cm_pico)
 else ifneq ($(filter $(TARGET_PRODUCT), cm_m7 cm_m7spr cm_m7vzw),)
     TARGET_COMMON_NAME := HTC One ($(TARGET_PRODUCT))
     KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1920
     TARGET_SCREEN_WIDTH := 1080
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -696,6 +691,7 @@ else ifeq ($(TARGET_PRODUCT), cm_vigor)
 else ifneq ($(filter $(TARGET_PRODUCT),cm_m8 cm_m8spr cm_m8vzw cm_m8att),)
     TARGET_COMMON_NAME := HTC One M8 ($(TARGET_PRODUCT))
     KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1920
     TARGET_SCREEN_WIDTH := 1080
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -703,6 +699,8 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_m8 cm_m8spr cm_m8vzw cm_m8att),)
 #HTC One Mini (m4)
 else ifeq ($(TARGET_PRODUCT), cm_m4)
     TARGET_COMMON_NAME := HTC One Mini
+    KERNEL_EXFAT_MODULE_NAME := "exfat"
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1280
     TARGET_SCREEN_WIDTH := 720
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -856,6 +854,7 @@ else ifneq ($(filter $(TARGET_PRODUCT),cm_xt1053 cm_xt1055 cm_xt1056 cm_xt1058 c
 #Motorola Moto G Unified (falcon): Verizon (xt1028), Boostmobile (xt1031), GSM (xt1032), Dual Sim (xt1033), Retail US (xt1034), Google Play Edition (falcon_gpe)
 else ifeq ($(TARGET_PRODUCT), cm_falcon)
     TARGET_COMMON_NAME := Moto G (falcon)
+    TARGET_USERIMAGES_USE_F2FS := true
     TARGET_SCREEN_HEIGHT := 1280
     TARGET_SCREEN_WIDTH := 720
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -870,6 +869,13 @@ else ifeq ($(TARGET_PRODUCT), cm_find5)
 #Oppo N1 (n1)
 else ifeq ($(TARGET_PRODUCT), cm_n1)
     TARGET_COMMON_NAME := Oppo N1
+    TARGET_SCREEN_HEIGHT := 1920
+    TARGET_SCREEN_WIDTH := 1080
+    BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
+
+#Oppo Find7,Find7a,X9007,X9006 (find7)
+else ifeq ($(TARGET_PRODUCT), cm_find7)
+    TARGET_COMMON_NAME := Oppo Find7
     TARGET_SCREEN_HEIGHT := 1920
     TARGET_SCREEN_WIDTH := 1080
     BRIGHTNESS_SYS_FILE := "/sys/class/leds/lcd-backlight/brightness"
@@ -970,6 +976,10 @@ else ifeq ($(TARGET_PRODUCT), cm_nex)
 
 endif
 #---- end device specific config
+
+
+# use libtar for backup/restore instead of busybox
+BOARD_RECOVERY_USE_LIBTAR := true
 
 # The below flags must always be defined as default in BoardConfig.mk, unless defined above:
 # device name to display in About dialog

@@ -47,16 +47,9 @@ void ui_clear_key_queue();
 void ui_print(const char *fmt, ...) __attribute__((format(printf, 1, 2)));
 void ui_printlogtail(int nb_lines);
 
-void ui_delete_line(int num);
 void ui_set_show_text(int value);
-void ui_set_nice(int enabled);
-#define ui_nice_print(...) { ui_set_nice(1); ui_print(__VA_ARGS__); ui_set_nice(0); }
-int ui_was_niced();
 int ui_get_text_cols();
-void ui_increment_frame();
 void ui_setMenuTextColor(int r, int g, int b, int a);
-
-void ui_nolog_lines(int lines);
 
 #ifdef ENABLE_LOKI
 int loki_support_enabled();
@@ -126,6 +119,9 @@ void ui_show_indeterminate_progress();
 // Hide and reset the progress bar.
 void ui_reset_progress();
 
+// do a reset and show the progress bar without updating screen
+void ui_quick_reset_and_show_progress(float portion, int seconds);
+
 #define LOGE(...) ui_print("E:" __VA_ARGS__)
 #define LOGW(...) fprintf(stdout, "W:" __VA_ARGS__)
 #define LOGI(...) fprintf(stdout, "I:" __VA_ARGS__)
@@ -166,5 +162,6 @@ typedef struct {
 FILE* fopen_path(const char *path, const char *mode);
 
 void set_perf_mode(int on);
+void vold_init();
 
 #endif  // RECOVERY_COMMON_H

@@ -41,8 +41,6 @@
 #include "roots.h"
 #include "recovery_ui.h"
 
-#include "voldclient/voldclient.h"
-
 #include "adb_install.h"
 #include "minadbd/adb.h"
 
@@ -72,10 +70,12 @@ static const struct option OPTIONS[] = {
   { "wipe_cache", no_argument, NULL, 'c' },
   { "show_text", no_argument, NULL, 't' },
   { "sideload", no_argument, NULL, 'l' },
+  { "stages", required_argument, NULL, 'g' },
   { NULL, 0, NULL, 0 },
 };
 
 #define LAST_LOG_FILE "/cache/recovery/last_log"
+
 static const char *CACHE_LOG_DIR = "/cache/recovery";
 static const char *COMMAND_FILE = "/cache/recovery/command";
 static const char *INTENT_FILE = "/cache/recovery/intent";
@@ -85,6 +85,8 @@ static const char *CACHE_ROOT = "/cache";
 static const char *TEMPORARY_LOG_FILE = "/tmp/recovery.log";
 static const char *TEMPORARY_INSTALL_FILE = "/tmp/last_install";
 static const char *SIDELOAD_TEMP_DIR = "/tmp/sideload";
+
+char* stage = NULL;
 
 extern UIParameters ui_parameters;    // from ui.c
 
@@ -100,6 +102,7 @@ extern UIParameters ui_parameters;    // from ui.c
  *   --wipe_data - erase user data (and cache), then reboot
  *   --wipe_cache - wipe cache (but not user data), then reboot
  *   --set_encrypted_filesystem=on|off - enables / diasables encrypted fs
+ *   --sideload - enter sideload mode
  *
  * After completing, we remove /cache/recovery/command and reboot.
  * Arguments may also be supplied in the bootloader control block (BCB).
@@ -182,9 +185,8 @@ static void
 get_args(int *argc, char ***argv) {
     struct bootloader_message boot;
     memset(&boot, 0, sizeof(boot));
-    if (device_flash_type() == MTD || device_flash_type() == MMC) {
-        get_bootloader_message(&boot);  // this may fail, leaving a zeroed structure
-    }
+    get_bootloader_message(&boot);  // this may fail, leaving a zeroed structure
+    stage = strndup(boot.stage, sizeof(boot.stage));
 
     if (boot.command[0] != 0 && boot.command[0] != 255) {
         LOGI("Boot command: %.*s\n", sizeof(boot.command), boot.command);
@@ -358,6 +360,7 @@ int
 erase_volume(const char *volume) {
     bool is_cache = (strcmp(volume, CACHE_ROOT) == 0);
 
+    int icon = ui_get_background_icon();
     ui_set_background(BACKGROUND_ICON_INSTALLING);
     ui_show_indeterminate_progress();
 
@@ -435,6 +438,8 @@ erase_volume(const char *volume) {
         copy_logs();
     }
 
+    ui_set_background(icon);
+    ui_reset_progress();
     return result;
 }
 
@@ -481,7 +486,7 @@ copy_sideloaded_package(const char* original_path) {
   strcpy(copy_path, SIDELOAD_TEMP_DIR);
   strcat(copy_path, "/package.zip");
 
-  char* buffer = malloc(BUFSIZ);
+  char* buffer = (char*)malloc(BUFSIZ);
   if (buffer == NULL) {
     LOGE("Failed to allocate buffer\n");
     return NULL;
@@ -933,9 +938,9 @@ setup_adbd() {
             check_and_fclose(file_src, key_src);
         }
     }
-    ignore_data_media_workaround(1);
+    preserve_data_media(0);
     ensure_path_unmounted("/data");
-    ignore_data_media_workaround(0);
+    preserve_data_media(1);
 
     // Trigger (re)start of adb daemon
     property_set("service.adb.root", "1");
@@ -995,6 +1000,11 @@ static struct vold_callbacks v_callbacks = {
     .disk_added = handle_volume_hotswap,
     .disk_removed = handle_volume_hotswap,
 };
+
+void vold_init() {
+    vold_client_start(&v_callbacks, 0);
+    vold_set_automount(1);
+}
 
 int
 main(int argc, char **argv) {
@@ -1071,8 +1081,7 @@ main(int argc, char **argv) {
 
     load_volume_table();
     process_volumes();
-    vold_client_start(&v_callbacks, 0);
-    vold_set_automount(1);
+    vold_init();
     setup_legacy_storage_paths();
     LOGI("Processing arguments.\n");
     ensure_path_mounted(LAST_LOG_FILE);
@@ -1106,11 +1115,27 @@ main(int argc, char **argv) {
         case 'c': wipe_cache = 1; break;
         case 't': ui_show_text(1); break;
         case 'l': sideload = 1; break;
+        case 'g': {
+            if (stage == NULL || *stage == '\0') {
+                char buffer[20] = "1/";
+                strncat(buffer, optarg, sizeof(buffer)-3);
+                stage = strdup(buffer);
+            }
+            break;
+        }
         case '?':
             LOGE("Invalid command argument\n");
             continue;
         }
     }
+
+    printf("stage is [%s]\n", stage);
+
+    int st_cur, st_max;
+    if (stage != NULL && sscanf(stage, "%d/%d", &st_cur, &st_max) == 2) {
+        ui_SetStage(st_cur, st_max);
+    }
+    // ui_SetStage(5, 8); // debug
 
     struct selinux_opt seopts[] = {
       { SELABEL_OPT_PATH, "/file_contexts" }
@@ -1161,9 +1186,9 @@ main(int argc, char **argv) {
         }
     } else if (wipe_data) {
         if (device_wipe_data()) status = INSTALL_ERROR;
-        ignore_data_media_workaround(1);
+        preserve_data_media(0);
         if (erase_volume("/data")) status = INSTALL_ERROR;
-        ignore_data_media_workaround(0);
+        preserve_data_media(1);
         if (has_datadata() && erase_volume("/datadata")) status = INSTALL_ERROR;
         if (wipe_cache && erase_volume("/cache")) status = INSTALL_ERROR;
         if (status != INSTALL_SUCCESS) {
@@ -1239,6 +1264,10 @@ main(int argc, char **argv) {
         handle_failure(1);
     }
     else if (status != INSTALL_SUCCESS || ui_text_visible()) {
+#ifdef PHILZ_TOUCH_RECOVERY
+        // check if recovery is locked
+        check_recovery_lock();
+#endif
         prompt_and_wait();
     }
 

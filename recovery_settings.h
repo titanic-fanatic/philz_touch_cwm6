@@ -17,10 +17,6 @@
 // nandroid settings
 #define NANDROID_HIDE_PROGRESS_FILE  "clockworkmod/.hidenandroidprogress"
 #define NANDROID_BACKUP_FORMAT_FILE  "clockworkmod/.default_backup_format"
-#ifdef BOARD_RECOVERY_USE_BBTAR
-#define NANDROID_IGNORE_SELINUX_FILE "clockworkmod/.ignore_nandroid_secontext"
-#endif
-
 #define EFS_BACKUP_PATH     "clockworkmod/backup/.efs_backup"
 #define MODEM_BIN_PATH      "clockworkmod/backup/.modem_bin"
 #define RADIO_BIN_PATH      "clockworkmod/backup/.radio_bin"
@@ -41,6 +37,7 @@
 #define RECOVERY_ORS_PATH       "clockworkmod/ors"
 #define ORS_BOOT_SCRIPT_FILE    "/cache/recovery/openrecoveryscript"
 
+
 #ifdef PHILZ_TOUCH_RECOVERY
 // if these are changed, they won't take effect until we update libtouch_gui
 // custom background images
@@ -48,6 +45,11 @@
 
 // capture screen folder
 #define SCREEN_CAPTURE_FOLDER   "clockworkmod/screen_shots"
+
+// recovery lock file, pass key max chars and max allowed errors
+#define RECOVERY_LOCK_FILE      "/system/.recovery_key.lok"
+#define RECOVERY_LOCK_MAX_CHARS 6
+#define RECOVERY_LOCK_MAX_ERROR 3
 #endif
 
 
@@ -145,6 +147,7 @@ struct CWMSettingsIntValues wait_after_install;
 struct CWMSettingsLongIntValues t_zone;
 struct CWMSettingsLongIntValues t_zone_offset;
 struct CWMSettingsIntValues use_dst_time;
+struct CWMSettingsIntValues use_qcom_time_data_files;
 struct CWMSettingsIntValues use_qcom_time_daemon;
 struct CWMSettingsLongIntValues use_qcom_time_offset;
 
@@ -174,5 +177,18 @@ void refresh_recovery_settings(int on_start);
 
 // check settings file on start and prompt to restore it if absent AND a backup is found: called by recovery.c
 void verify_settings_file();
+
+/*
+properties reference:
+ro.cwm.backup_partitions
+ro.cwm.enable_key_repeat
+ro.cwm.repeatable_keys
+ro.cwm.forbid_mount
+ro.cwm.forbid_format
+ro.cwm.prefer_tar
+ro.sf.lcd_density // not used in PhilZ Touch
+ro.loki_disabled
+ro.bootloader.mode
+*/
 
 #endif // _RECOVERY_SETTINGS_H
