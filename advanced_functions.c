@@ -4078,6 +4078,20 @@ void show_philz_settings_menu()
             }
 #endif
             case 9: {
+                char value[5];
+                volume_labels_enabled.value ^= 1;
+                sprintf(value, "%d", volume_labels_enabled.value);
+                write_config_file(PHILZ_SETTINGS_FILE, volume_labels_enabled.key, value);
+                break;
+            }
+            case 10: {
+                char value[5];
+                directory_sort_insensitive.value ^= 1;
+                sprintf(value, "%d", directory_sort_insensitive.value);
+                write_config_file(PHILZ_SETTINGS_FILE, directory_sort_insensitive.key, value);
+                break;
+            }
+            case 11: {
                 ui_print(EXPAND(RECOVERY_MOD_VERSION) "\n");
                 ui_print("Build version: " EXPAND(PHILZ_BUILD) " - " EXPAND(TARGET_COMMON_NAME) "\n");
                 ui_print("CWM Base version: " EXPAND(CWM_BASE_VERSION) "\n");
@@ -4086,20 +4100,6 @@ void show_philz_settings_menu()
 #endif
                 //ui_print(EXPAND(BUILD_DATE)"\n");
                 ui_print("Compiled %s at %s\n", __DATE__, __TIME__);
-                break;
-            }
-            case 10: {
-                char value[5];
-                volume_labels_enabled.value ^= 1;
-                sprintf(value, "%d", volume_labels_enabled.value);
-                write_config_file(PHILZ_SETTINGS_FILE, volume_labels_enabled.key, value);
-                break;
-            }
-            case 11: {
-                char value[5];
-                directory_sort_insensitive.value ^= 1;
-                sprintf(value, "%d", directory_sort_insensitive.value);
-                write_config_file(PHILZ_SETTINGS_FILE, directory_sort_insensitive.key, value);
                 break;
             }
         }
