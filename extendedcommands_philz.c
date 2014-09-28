@@ -115,35 +115,7 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
     char* return_value = NULL;
     char directory[PATH_MAX];
     int dir_len = strlen(basedir);
-    char storage_name[100];
-    
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
-    
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
-    
-    if (volume_labels_enabled.value){
-        char *ret;
-        
-        strcpy(storage_name, basedir);
-        ret = strstr(storage_name, "/storage/sdcard0");
-        
-        if (ret != NULL) {
-            strcpy(storage_name,
-                strrepl(storage_name, "/storage/sdcard0", primary_storage_label));
-        } else {
-            strcpy(storage_name,
-                strrepl(storage_name, "/storage/sdcard1", secondary_storage_label));
-        }
-    }
-    
+
     strcpy(directory, basedir);
 
     // Append a trailing slash if necessary
@@ -157,7 +129,7 @@ char* choose_file_menu(const char* basedir, const char* fileExtensionOrDirectory
         fixed_headers[i] = headers[i];
         i++;
     }
-    fixed_headers[i] = volume_labels_enabled.value ? storage_name : directory;
+    fixed_headers[i] = directory;
     // let's spare some header space
     // fixed_headers[i + 1] = "";
     // fixed_headers[i + 2] = NULL;
@@ -1465,27 +1437,9 @@ static void show_custom_ors_menu() {
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
-	char storage_name[100];
-	
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
-
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
 
     const char* headers[] = { "Search .ors script to run", "", NULL };
 
-    if (volume_labels_enabled.value)
-        strcpy(storage_name, primary_storage_label);
-    else
-        strcpy(storage_name, primary_path);
-    
     char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     char list_prefix[] = "Search ";
     char buf[256];
@@ -1496,16 +1450,7 @@ static void show_custom_ors_menu() {
     int i;
     if (extra_paths != NULL) {
         for(i = 0; i < num_extra_volumes; i++) {
-            if (volume_labels_enabled.value) {
-                if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-                    strcpy(storage_name, primary_storage_label);
-                else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
-                    strcpy(storage_name, secondary_storage_label);
-            } else {
-                strcpy(storage_name, extra_paths[i]);
-            }
-            
-            sprintf(buf, "%s%s", list_prefix, storage_name);
+            sprintf(buf, "%s%s", list_prefix, extra_paths[i]);
             list[i + 1] = strdup(buf);
         }
     }
@@ -3397,8 +3342,6 @@ void show_philz_settings_menu()
 
     char item_check_root_and_recovery[MENU_MAX_COLS];
     char item_auto_restore[MENU_MAX_COLS];
-    char item_volume_labels_enabled[MENU_MAX_COLS];
-    char item_directory_sort_insensitive[MENU_MAX_COLS];
 
     char* list[] = {
         item_check_root_and_recovery,
@@ -3407,8 +3350,6 @@ void show_philz_settings_menu()
         "Reset All Recovery Settings",
         "Setup Recovery Lock",
         "GUI Preferences",
-        item_volume_labels_enabled,
-        item_directory_sort_insensitive,
         "About",
         NULL
     };
@@ -3421,14 +3362,6 @@ void show_philz_settings_menu()
         if (auto_restore_settings.value)
             ui_format_gui_menu(item_auto_restore, "Auto Restore Settings", "(x)");
         else ui_format_gui_menu(item_auto_restore, "Auto Restore Settings", "( )");
-        
-        if (volume_labels_enabled.value)
-            ui_format_gui_menu(item_volume_labels_enabled, "Volume Labels Enabled", "(x)");
-        else ui_format_gui_menu(item_volume_labels_enabled, "Volume Labels Enabled", "( )");
-        
-        if (directory_sort_insensitive.value)
-            ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort Insensitive", "(x)");
-        else ui_format_gui_menu(item_directory_sort_insensitive, "Directory Sort Insensitive", "( )");
 
         int chosen_item = get_menu_selection(headers, list, 0, 0);
         if (chosen_item == GO_BACK)
@@ -3475,20 +3408,6 @@ void show_philz_settings_menu()
             }
 #endif
             case 6: {
-                char value[5];
-                volume_labels_enabled.value ^= 1;
-                sprintf(value, "%d", volume_labels_enabled.value);
-                write_config_file(PHILZ_SETTINGS_FILE, volume_labels_enabled.key, value);
-                break;
-            }
-            case 7: {
-                char value[5];
-                directory_sort_insensitive.value ^= 1;
-                sprintf(value, "%d", directory_sort_insensitive.value);
-                write_config_file(PHILZ_SETTINGS_FILE, directory_sort_insensitive.key, value);
-                break;
-            }
-            case 8: {
                 ui_print(EXPAND(RECOVERY_MOD_VERSION) "\n");
                 ui_print("Build version: " EXPAND(PHILZ_BUILD) " - " EXPAND(TARGET_COMMON_NAME) "\n");
                 ui_print("CWM Base version: " EXPAND(CWM_BASE_VERSION) "\n");
@@ -3497,7 +3416,6 @@ void show_philz_settings_menu()
 #endif
                 //ui_print(EXPAND(BUILD_DATE)"\n");
                 ui_print("Compiled %s at %s\n", __DATE__, __TIME__);
-                ui_print("Compiled by: XDA RC titanic_fanatic\n");
                 break;
             }
         }
@@ -3541,48 +3459,18 @@ int show_install_update_menu() {
     char* primary_path = get_primary_storage_path();
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
-    
-    char storage_name[100];
-    
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
-
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
 
     memset(install_menu_items, 0, sizeof(install_menu_items));
 
     const char* headers[] = { "Install update from zip file", "", NULL };
-    
-    if (volume_labels_enabled.value)
-        strcpy(storage_name, primary_storage_label);
-    else
-        strcpy(storage_name, primary_path);
 
     // FIXED_TOP_INSTALL_ZIP_MENUS
-    sprintf(buf, "Choose zip from %s", storage_name);
+    sprintf(buf, "Choose zip from %s", primary_path);
     install_menu_items[0] = strdup(buf);
 
     // extra storage volumes (vold managed)
     for (i = 0; i < num_extra_volumes; i++) {
-        if (volume_labels_enabled.value) {
-            if (strcmp(extra_paths[i], "/storage/sdcard0") == 0)
-              strcpy(storage_name, primary_storage_label);
-            else if (strcmp(extra_paths[i], "/storage/sdcard1") == 0)
-                strcpy(storage_name, secondary_storage_label);
-            else
-				strcpy(storage_name, extra_paths[i]);
-        } else {
-			strcpy(storage_name, extra_paths[i]);
-        }
-        
-        sprintf(buf, "Choose zip from %s", storage_name);
+        sprintf(buf, "Choose zip from %s", extra_paths[i]);
         install_menu_items[FIXED_TOP_INSTALL_ZIP_MENUS + i] = strdup(buf);
     }
 
@@ -3649,7 +3537,6 @@ out:
     }
     return chosen_item;
 }
-
 
 void show_choose_zip_menu(const char *mount_point) {
     if (ensure_path_mounted(mount_point) != 0) {
@@ -4119,20 +4006,6 @@ void show_partition_format_menu() {
     int formatable_volumes = 0;
     int num_volumes;
     int chosen_item = 0;
-	
-	char storage_name[100];
-	
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
-
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
 
     num_volumes = get_num_volumes();
 
@@ -4153,20 +4026,8 @@ void show_partition_format_menu() {
         MFMatrix mfm = { v->mount_point, v->fs_type, 1, 1 };
         get_mnt_fmt_capabilities(&mfm);
 
-        if (volume_labels_enabled.value){
-            if (strcmp(v->mount_point, "/storage/sdcard0") == 0)
-                strcpy(storage_name, primary_storage_label);
-            else if (strcmp(v->mount_point, "/storage/sdcard1") == 0)
-                strcpy(storage_name, secondary_storage_label);
-            else
-                strcpy(storage_name, v->mount_point);
-        }
-        else {
-            strcpy(storage_name, v->mount_point);
-        }
-
         if (mfm.can_format) {
-            sprintf(format_menu[formatable_volumes].txt, "format %s", storage_name);
+            sprintf(format_menu[formatable_volumes].txt, "format %s", v->mount_point);
             sprintf(format_menu[formatable_volumes].path, "%s", v->mount_point);
             sprintf(format_menu[formatable_volumes].type, "%s", v->fs_type);
             ++formatable_volumes;
@@ -4274,20 +4135,6 @@ int show_partition_mounts_menu() {
     int num_volumes;
     int chosen_item = 0;
     int is_vold_ums_capable = 0;
-	
-	char storage_name[100];
-	
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
-
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
 
     num_volumes = get_num_volumes();
 
@@ -4313,21 +4160,9 @@ int show_partition_mounts_menu() {
         MFMatrix mfm = { v->mount_point, v->fs_type, 1, 1 };
         get_mnt_fmt_capabilities(&mfm);
 
-        if (volume_labels_enabled.value){
-            if (strcmp(v->mount_point, "/storage/sdcard0") == 0)
-                strcpy(storage_name, primary_storage_label);
-            else if (strcmp(v->mount_point, "/storage/sdcard1") == 0)
-                strcpy(storage_name, secondary_storage_label);
-            else
-                strcpy(storage_name, v->mount_point);
-        }
-        else {
-            strcpy(storage_name, v->mount_point);
-        }
-
         if (mfm.can_mount) {
-            sprintf(mount_menu[mountable_volumes].mount, "mount %s", storage_name);
-            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", storage_name);
+            sprintf(mount_menu[mountable_volumes].mount, "mount %s", v->mount_point);
+            sprintf(mount_menu[mountable_volumes].unmount, "unmount %s", v->mount_point);
             sprintf(mount_menu[mountable_volumes].path, "%s", v->mount_point);
             ++mountable_volumes;
         }
@@ -4444,44 +4279,20 @@ void choose_default_backup_format() {
 
 static void add_nandroid_options_for_volume(char** menu, char* path, int offset) {
     char buf[100];
-    char storage_name[100];
-    
-#ifdef RECOVERY_PRIMARY_STORAGE_LABEL
-    char primary_storage_label[] = RECOVERY_PRIMARY_STORAGE_LABEL;
-#else
-    char primary_storage_label[] = "Internal sdcard";
-#endif
 
-#ifdef RECOVERY_SECONDARY_STORAGE_LABEL
-    char secondary_storage_label[] = RECOVERY_SECONDARY_STORAGE_LABEL;
-#else
-    char secondary_storage_label[] = "External sdcard";
-#endif
-    
-    if (volume_labels_enabled.value) {
-        if (strcmp(path, "/storage/sdcard0") == 0)
-            strcpy(storage_name, primary_storage_label);
-        else if (strcmp(path, "/storage/sdcard1") == 0)
-            strcpy(storage_name, secondary_storage_label);
-        else
-            strcpy(storage_name, path);
-    } else {
-        strcpy(storage_name, path);
-    }
-
-    sprintf(buf, "Backup to %s", storage_name);
+    sprintf(buf, "Backup to %s", path);
     menu[offset] = strdup(buf);
 
-    sprintf(buf, "Restore from %s", storage_name);
+    sprintf(buf, "Restore from %s", path);
     menu[offset + 1] = strdup(buf);
 
-    sprintf(buf, "Delete from %s", storage_name);
+    sprintf(buf, "Delete from %s", path);
     menu[offset + 2] = strdup(buf);
 
-    sprintf(buf, "Custom Backup to %s", storage_name);
+    sprintf(buf, "Custom Backup to %s", path);
     menu[offset + 3] = strdup(buf);
 
-    sprintf(buf, "Custom Restore from %s", storage_name);
+    sprintf(buf, "Custom Restore from %s", path);
     menu[offset + 4] = strdup(buf);
 }
 
@@ -4780,6 +4591,7 @@ void show_advanced_menu() {
         NULL,   // loki toggle
         NULL
     };
+
 
     for (;;) {
         if (is_data_media()) {
