@@ -49,22 +49,19 @@
 #include "bootloader.h"
 #include "common.h"
 #include "cutils/properties.h"
-#include "firmware.h"
 #include "install.h"
 #include "make_ext4fs.h"
 #include "minui/minui.h"
 #include "minzip/DirUtil.h"
 #include "roots.h"
 #include "recovery_ui.h"
-
+#include "ui.h"
 #include "extendedcommands.h"
 #include "advanced_functions.h"
 #include "recovery_settings.h"
 #include "nandroid.h"
-#include "mounts.h"
 #include "flashutils/flashutils.h"
 #include "edify/expr.h"
-#include <libgen.h>
 #include "mtdutils/mtdutils.h"
 #include "bmlutils/bmlutils.h"
 #include "cutils/android_reboot.h"
@@ -134,8 +131,8 @@ int batt_clock_code[4] = {DEFAULT_BATT_CLOCK_CODE};
 
 // dim and blank screen
 static long int max_brightness_value = 255;
-int is_blanked = 0;
-int is_dimmed = 0;
+bool is_blanked = 0;
+bool is_dimmed = 0;
 
 // toggle friendly log view during install_zip()
 // on start, bypass user settings: do not wait after boot install scripts
@@ -325,7 +322,7 @@ static void check_menu_height() {
 static void check_scroll_sensitivity() {
     char value[PROPERTY_VALUE_MAX];
     char value_def[5];
-    sprintf (value_def, "%d", SCROLL_SENSITIVITY_0);
+    sprintf (value_def, "%ld", SCROLL_SENSITIVITY_0);
     read_config_file(PHILZ_SETTINGS_FILE, scroll_sensitivity.key, value, value_def);
     scroll_sensitivity.value = strtol(value, NULL, 10);
     if (scroll_sensitivity.value < SCROLL_SENSITIVITY_MIN || scroll_sensitivity.value > SCROLL_SENSITIVITY_MAX)
@@ -1259,7 +1256,7 @@ static void browse_background_image() {
     char list_prefix[] = "Image from ";
     char* list[MAX_NUM_MANAGED_VOLUMES + list_top_items + 1];
     char buf[80];
-    memset(list, 0, MAX_NUM_MANAGED_VOLUMES + list_top_items + 1);
+    memset(list, 0, sizeof(list));
     list[0] = "Solid Color Background";
     list[1] = "Reset Koush Background";
     list[2] = "Reset PhilZ Touch Background";
@@ -1313,6 +1310,7 @@ static void browse_background_image() {
 
     free(list[4]);
     if (extra_paths != NULL) {
+        free_string_array(extra_paths);
         for(i = 0; i < num_extra_volumes; i++)
             free(list[i + list_top_items]);
     }
@@ -1375,21 +1373,20 @@ void refresh_touch_gui_settings(int on_start) {
 
 //start show GUI Preferences menu
 static void change_menu_color() {
-    const char* headers[] = {  "Change Menu Colors",
-                                NULL
-    };
+    const char* headers[] = { "Change Menu Colors", NULL };
 
-    char* list[] = { "Change Menu Text Color",
-                            "Change Menu Background Color",
-                            "Change Menu Background Alpha",
-                            "Change Menu Highlight Color",
-                            "Change Menu Highlight Alpha",
-                            "Change Menu Separator Color",
-                            "Change Menu Separator Alpha",
-                            "Change Log and Prints Color",
-                            "Change Header Text Color",
-                            "Change Battery and Clock Color",
-                            NULL
+    char* list[] = {
+        "Change Menu Text Color",
+        "Change Menu Background Color",
+        "Change Menu Background Alpha",
+        "Change Menu Highlight Color",
+        "Change Menu Highlight Alpha",
+        "Change Menu Separator Color",
+        "Change Menu Separator Alpha",
+        "Change Log and Prints Color",
+        "Change Header Text Color",
+        "Change Battery and Clock Color",
+        NULL
     };
 
     for (;;) {
@@ -1466,14 +1463,19 @@ static void change_menu_color() {
 /**********************************/
 /*   Start touch gesture actions  */
 /**********************************/
-// capture screen using fb2png and incremental file names
+// capture screen to incremental file names
 // prefer second storage paths first, then primary storage
-static void fb2png_shot() {
-    if (!libtouch_flags.board_use_fb2png) {
-        ui_print("fb2png not supported on this device!\n");
-        return;
-    }
+#define FB2PNG_BIN "/sbin/fb2png" // recovery_cmds.h
+static int fb2png_capture(const char* file_path) {
+    if (!file_found(FB2PNG_BIN))
+        return -1;
 
+    char cmd[PATH_MAX];
+    sprintf(cmd, "%s %s", FB2PNG_BIN, file_path);
+    return __system(cmd);
+}
+
+static void screen_shot() {
     char* sd_path = NULL;
     char** extra_paths = get_extra_storage_paths();
     int num_extra_volumes = get_num_extra_volumes();
@@ -1492,16 +1494,17 @@ static void fb2png_shot() {
         sd_path = get_primary_storage_path();
 
     if (ensure_path_mounted(sd_path) != 0) {
-        ui_print("Found no mountable storage to save screen shots.\n");
+        ui_print("no mountable storage to save screen shots.\n");
+        free_string_array(extra_paths);
         return;
     }
 
-    //reads index file to increment filename
-    char tmp[PATH_MAX];
+    // reads index file to increment filename
+    char path[PATH_MAX];
     char line[5]; // xxxx + new line, so that when it reaches 1000 it doesn't read it as 100
     long int file_num = 1;
-    sprintf(tmp, "%s/%s/index", sd_path, SCREEN_CAPTURE_FOLDER);
-    FILE *fp = fopen(tmp, "r");
+    sprintf(path, "%s/%s/index", sd_path, SCREEN_CAPTURE_FOLDER);
+    FILE *fp = fopen(path, "r");
     if (fp != NULL) {
         if (fgets(line, sizeof(line), fp) != NULL) {
             file_num = strtol(line, NULL, 10);
@@ -1512,26 +1515,35 @@ static void fb2png_shot() {
         fclose(fp);
     }
 
-    //capture screen
+    // capture screen
     char dirtmp[PATH_MAX];
-    sprintf(dirtmp, "%s", DirName(tmp));
-    ensure_directory(dirtmp);
-    sprintf(tmp, "fb2png %s/%s/cwm_screen%03ld.png", sd_path, SCREEN_CAPTURE_FOLDER, file_num);
-    if (0 == __system(tmp)) {
-        ui_print("screen shot: %s\n", tmp + 7); // strlen("fb2png ")
-        sprintf(tmp, "%s/%s/index", sd_path, SCREEN_CAPTURE_FOLDER);
-        sprintf(line, "%ld", file_num);
-        write_string_to_file(tmp, line);
-    } else {
-        ui_print("screen capture failed\n");
+    int ret;
+    sprintf(dirtmp, "%s", DirName(path));
+    ensure_directory(dirtmp, 0755);
+    sprintf(path, "%s/%s/cwm_screen%03ld.png", sd_path, SCREEN_CAPTURE_FOLDER, file_num);
+    ret = gr_save_screenshot(path);
+    if (ret == -2) {
+        // device uses a custom graphics.c
+        // try to use libfb2png
+        ret = fb2png_capture(path);
+        ui_print("custom graphics source detected: dropping to fb2png mode:\n");
     }
+    if (ret == 0) {
+        ui_print("screen shot: %s\n", path);
+        sprintf(path, "%s/%s/index", sd_path, SCREEN_CAPTURE_FOLDER);
+        sprintf(line, "%ld", file_num);
+        write_string_to_file(path, line);
+    } else {
+        LOGE("screen capture failed\n");
+    }
+    free_string_array(extra_paths);
 }
 
 // Touch gesture actions
 //  - they are only triggered when in a menu prompt view (get_menu_selection())
 //  - we also disable them if progress bar is being shown
 //    this can happen in md5 display/verify threads where we have progress bar while waiting for menu action
-//    fb2png and brightness actions call unsafe thread functions: basename, dirname, ensure_path_mounted()
+//    screen capture and brightness actions call unsafe thread functions: basename, dirname, ensure_path_mounted()
 void handle_gesture_actions(const char** headers, char** items, int initial_selection) {
     int action = DISABLE_ACTION;
     if (ui_showing_progress_bar())
@@ -1549,7 +1561,7 @@ void handle_gesture_actions(const char** headers, char** items, int initial_sele
 
     switch (action) {
         case SCREEN_CAPTURE_ACTION:
-            fb2png_shot();
+            screen_shot();
             break;
         case AROMA_BROWSER_ACTION:
             ui_end_menu();
@@ -1566,12 +1578,12 @@ void handle_gesture_actions(const char** headers, char** items, int initial_sele
             ui_start_menu(headers, items, initial_selection);
             break;
         case BLANK_SCREEN_ACTION:
-            ui_blank_screen(1);
+            ui_blank_screen(true);
             // to avoid considering more keys, mainly on long press and move action, usleep for 1sec before clearing key queue
             // use 999999 micro sec as 1000000 usecs is illegal in usleep
             usleep(999999);
             ui_clear_key_queue();
-            ui_wait_key(); // will also call ui_blank_screen(0) on a key press and set ignore_key_action
+            ui_wait_key(); // will also call ui_blank_screen(false) on a key press and set ignore_key_action
             break;
     }
 
@@ -1580,9 +1592,7 @@ void handle_gesture_actions(const char** headers, char** items, int initial_sele
 }
 
 static void gestures_action_setup() {
-    const char* headers[] = {  "Gesture Action Setup",
-                                NULL
-    };
+    const char* headers[] = { "Gesture Action Setup", NULL };
 
     char item_slide_left[MENU_MAX_COLS];
     char item_slide_right[MENU_MAX_COLS];
@@ -1590,21 +1600,23 @@ static void gestures_action_setup() {
     char item_press_lift[MENU_MAX_COLS];
     char item_press_move[MENU_MAX_COLS];
 
-    char* list[] = { item_slide_left,
-                    item_slide_right,
-                    item_double_tap,
-                    item_press_lift,
-                    item_press_move,
-                    NULL
+    char* list[] = {
+        item_slide_left,
+        item_slide_right,
+        item_double_tap,
+        item_press_lift,
+        item_press_move,
+        NULL
     };
 
-    char* gesture_action[] = { "disabled",
-                                      "screen shot", 
-                                      "aroma browser",
-                                      "set brightness",
-                                      "show log",
-                                      "toggle screen",
-                                      NULL
+    char* gesture_action[] = {
+        "disabled",
+        "screen shot", 
+        "aroma browser",
+        "set brightness",
+        "show log",
+        "toggle screen",
+        NULL
     };
 
     for (;;) {
@@ -2243,8 +2255,8 @@ void show_touch_gui_menu() {
             ui_format_gui_menu(item_touch, "Touch GUI", "Full");
 
         if (menu_height_increase.value == MENU_HEIGHT_INCREASE_0)
-            sprintf(tmp, "%ld (default)", menu_height_increase.value);
-        else sprintf(tmp, "%ld (custom)", menu_height_increase.value);
+            sprintf(tmp, "%ld (default)", MENU_HEIGHT_TOTAL);
+        else sprintf(tmp, "%ld (custom)", MENU_HEIGHT_TOTAL);
         ui_format_gui_menu(item_height, "Menu Height", tmp);
 
         if (scroll_sensitivity.value == SCROLL_SENSITIVITY_0)
@@ -2344,7 +2356,7 @@ void show_touch_gui_menu() {
                         sprintf (value, "%d", MENU_HEIGHT_INCREASE_0);
                         write_config_file(PHILZ_SETTINGS_FILE, menu_height_increase.key, value);
                         write_config_file(PHILZ_SETTINGS_FILE, show_virtual_keys.key, "1");
-                        sprintf (value, "%d", SCROLL_SENSITIVITY_0);
+                        sprintf (value, "%ld", SCROLL_SENSITIVITY_0);
                         write_config_file(PHILZ_SETTINGS_FILE, scroll_sensitivity.key, value);
                     } else if (touch_to_validate.value == NO_TOUCH_SUPPORT) {
                         // hide recovery virtual keys by default in this mode since they are not used
@@ -2598,7 +2610,7 @@ static int rom_zip_wrapper(const char* backup_path) {
 
             // wake-up screen brightness on key event
             if (is_dimmed)
-                ui_dim_screen(0);
+                ui_dim_screen(false);
 
             // support cancel nandroid tar backup
             if (key_event == GO_BACK) {
@@ -2610,7 +2622,7 @@ static int rom_zip_wrapper(const char* backup_path) {
             }
         } else if (!is_dimmed && dim_timeout.value != 0 && (now.tv_sec - last_key_ev) >= dim_timeout.value) {
             // dim screen on timeout
-            ui_dim_screen(1);
+            ui_dim_screen(true);
         }
 
         tmp[PATH_MAX - 1] = '\0';
@@ -2624,25 +2636,26 @@ static int make_update_zip(const char* source_path, const char* target_volume) {
         ui_print("Can't mount %s\n", target_volume);
         return -1;
     }
+
     int ret = 0;
+    char cmd[PATH_MAX];
     char tmp_path[PATH_MAX];
     sprintf(tmp_path, "%s/%s/tmp", target_volume, CUSTOM_ROM_PATH);
 
     ui_print("\nPreparing ROM structure...\n");
-    char cmd[PATH_MAX];
     sprintf(cmd, "rm -rf %s", tmp_path);
     __system(cmd);
     sprintf(cmd, "mkdir -p %s/META-INF/com/google/android", tmp_path);
     __system(cmd);
 
-    if (NULL == source_path) {
+    if (source_path == NULL) {
         // create a nandroid backup from existing ROM and use it for update.zip
         backup_recovery = 0, backup_wimax = 0, backup_data = 0, backup_cache = 0, backup_sdext = 0;
         nandroid_force_backup_format("tar");
         ret = nandroid_backup(tmp_path);
         nandroid_force_backup_format("");
         backup_recovery = 1, backup_wimax = 1, backup_data = 1, backup_cache = 1, backup_sdext = 1;
-        if (0 != ret) {
+        if (ret != 0) {
             LOGE("Error while creating a nandroid image!\n");
             return ret;
         }
@@ -2666,7 +2679,7 @@ static int make_update_zip(const char* source_path, const char* target_volume) {
     ensure_path_unmounted("/system");
 
     //restore nandroid backup source folder
-    if (!(NULL == source_path)) {
+    if (source_path != NULL) {
         sprintf(cmd, "cd %s; mv boot.* system.* preload.* %s", tmp_path, source_path);
         __system(cmd);
     }
@@ -2675,7 +2688,7 @@ static int make_update_zip(const char* source_path, const char* target_volume) {
     sprintf(cmd, "rm -rf '%s'", tmp_path);
     __system(cmd);
 
-    if (0 != ret) {
+    if (ret != 0) {
         return print_and_error("Error while making a zip image!\n", ret);
     }
 
@@ -2694,7 +2707,7 @@ static void custom_rom_target_volume(const char* source_path) {
     char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     char list_prefix[] = "Create ROM in ";
     char buf[80];
-    memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
+    memset(list, 0, sizeof(list));
     sprintf(buf, "%s%s", list_prefix, primary_path);
     list[0] = strdup(buf);
 
@@ -2713,6 +2726,7 @@ static void custom_rom_target_volume(const char* source_path) {
 
     free(list[0]);
     if (extra_paths != NULL) {
+        free_string_array(extra_paths);
         for(i = 0; i < num_extra_volumes; i++)
             free(list[i + 1]);
     }
@@ -2733,7 +2747,7 @@ static void choose_nandroid_menu() {
     char* list[MAX_NUM_MANAGED_VOLUMES + 1];
     char list_prefix[] = "Choose from ";
     char buf[80];
-    memset(list, 0, MAX_NUM_MANAGED_VOLUMES + 1);
+    memset(list, 0, sizeof(list));
     sprintf(buf, "%s%s", list_prefix, primary_path);
     list[0] = strdup(buf);
 
@@ -2777,6 +2791,7 @@ static void choose_nandroid_menu() {
 out:
     free(list[0]);
     if (extra_paths != NULL) {
+        free_string_array(extra_paths);
         for(i = 0; i < num_extra_volumes; i++)
             free(list[i + 1]);
     }
@@ -2842,9 +2857,9 @@ static void recovery_change_passkey() {
     char pass_string[128] = "";
     int i = 0;
     int key_match = 1;
-    ui_set_show_text(0);
 
     // type in new passkey
+    ui_SetShowText(false);
     ui_clear_key_queue();
     for (i = 0; i < RECOVERY_LOCK_MAX_CHARS; ++i) {
         char tmp[64];
@@ -2896,7 +2911,7 @@ static void recovery_change_passkey() {
         ui_print("Recovery Lock is enabled\n");
     }
 
-    ui_set_show_text(1);
+    ui_SetShowText(true);
 }
 
 // check if recovery needs to be locked and prompt for a pass key if it is defined
@@ -2930,14 +2945,14 @@ void check_recovery_lock() {
 
     // hide screen menus and ui_print
     // this function can be called on recovery start (show_text == 0) or from menus (show_text == 1) to lock recovery or reset password
-    int visible = ui_text_visible();
-    ui_set_show_text(0);
+    bool visible = ui_IsTextVisible();
+    ui_SetShowText(false);
 
     // parse the password: "key1,key2,key3,key4..."
     int i = 0;
     int pass_chars = 0;
-    char** pass_key = (char**) malloc((RECOVERY_LOCK_MAX_CHARS) * sizeof(char*));
-    memset(pass_key, 0, RECOVERY_LOCK_MAX_CHARS);
+    char** pass_key = (char**)malloc((RECOVERY_LOCK_MAX_CHARS) * sizeof(char*));
+    memset(pass_key, 0, sizeof(pass_key));
     ptr = strtok(line, ", \n");
     while (i < RECOVERY_LOCK_MAX_CHARS && ptr != NULL) {
         pass_key[i] = strdup(ptr);
@@ -2959,10 +2974,10 @@ void check_recovery_lock() {
     char pass_display[128] = "";
     char trials_left_message[64];
 
-    // don't allow pass if key file was tempered with
-    // this will only allow passwords of RECOVERY_LOCK_MAX_CHARS characters
     if (pass_chars != RECOVERY_LOCK_MAX_CHARS) {
-        LOGE("unusual passkey length (%d)\n", pass_chars);
+        // don't allow pass if key file was tempered with
+        // this will only allow passwords of RECOVERY_LOCK_MAX_CHARS characters
+        LOGI("unusual passkey length (%d)\n", pass_chars);
         key_err = RECOVERY_LOCK_MAX_ERROR;
     }
 
@@ -3029,7 +3044,7 @@ void check_recovery_lock() {
 
     // unlock and continue
     LOGI("Recovery unlocked\n");
-    ui_set_show_text(visible);
+    ui_SetShowText(visible);
     property_set("sys.usb.recovery_lock", "0");
 }
 
