@@ -1,12 +1,6 @@
+ifeq ($(call my-dir),$(call project-path-for,recovery))
+
 LOCAL_PATH := $(call my-dir)
-
-ifeq ($(RECOVERY_VARIANT),)
-ifeq ($(LOCAL_PATH),bootable/recovery)
-RECOVERY_VARIANT := philz
-endif
-endif
-
-ifeq ($(RECOVERY_VARIANT),philz)
 
 # philz touch gui: either prebuilt or from sources
 PHILZ_TOUCH_RECOVERY := true
@@ -59,8 +53,6 @@ LOCAL_SRC_FILES := \
 ADDITIONAL_RECOVERY_FILES := $(shell echo $$ADDITIONAL_RECOVERY_FILES)
 LOCAL_SRC_FILES += $(ADDITIONAL_RECOVERY_FILES)
 
-LOCAL_ADDITIONAL_DEPENDENCIES += updater
-
 LOCAL_MODULE := recovery
 
 LOCAL_FORCE_STATIC_EXECUTABLE := true
@@ -79,7 +71,7 @@ endif
 # This should be the same line as upstream to not break makerecoveries.sh
 RECOVERY_VERSION := $(RECOVERY_NAME) v6.0.5.1
 
-PHILZ_BUILD := 6.57.9
+PHILZ_BUILD := 6.58.9
 CWM_BASE_VERSION := $(shell echo $(RECOVERY_VERSION) | cut -d ' ' -f 3)
 LOCAL_CFLAGS += -DCWM_BASE_VERSION="$(CWM_BASE_VERSION)"
 
@@ -183,6 +175,11 @@ ifeq ($(BOARD_RECOVERY_USE_LIBTAR),true)
 LOCAL_STATIC_LIBRARIES += libtar_recovery
 endif
 
+ifneq ($(BOARD_USE_NTFS_3G),false)
+LOCAL_CFLAGS += -DBOARD_USE_NTFS_3G
+LOCAL_STATIC_LIBRARIES += libmount.ntfs-3g libntfsfix.recovery libmkntfs.recovery libfuse-lite.recovery libntfs-3g.recovery
+endif
+
 ifeq ($(TARGET_USERIMAGES_USE_F2FS),true)
 LOCAL_CFLAGS += -DUSE_F2FS
 LOCAL_STATIC_LIBRARIES += libmake_f2fs libfsck_f2fs libfibmap_f2fs
@@ -204,12 +201,14 @@ LOCAL_STATIC_LIBRARIES += libstdc++ libc
 
 LOCAL_STATIC_LIBRARIES += libselinux
 
-include $(BUILD_EXECUTABLE)
-
 RECOVERY_LINKS := bu make_ext4fs edify busybox flash_image dump_image mkyaffs2image unyaffs erase_image nandroid reboot volume setprop getprop start stop dedupe minizip setup_adbd fsck_msdos newfs_msdos vdc sdcard pigz
 
 ifeq ($(BOARD_RECOVERY_USE_LIBTAR),true)
 RECOVERY_LINKS += tar
+endif
+
+ifneq ($(BOARD_USE_NTFS_3G),false)
+RECOVERY_LINKS += mkntfs ntfs-3g ntfsfix
 endif
 
 ifneq ($(BOARD_HAS_NO_FB2PNG),true)
@@ -222,30 +221,61 @@ endif
 
 # nc is provided by external/netcat
 RECOVERY_SYMLINKS := $(addprefix $(TARGET_RECOVERY_ROOT_OUT)/sbin/,$(RECOVERY_LINKS))
-$(RECOVERY_SYMLINKS): RECOVERY_BINARY := $(LOCAL_MODULE)
-$(RECOVERY_SYMLINKS): $(LOCAL_INSTALLED_MODULE)
-	@echo "Symlink: $@ -> $(RECOVERY_BINARY)"
-	@mkdir -p $(dir $@)
-	@rm -rf $@
-	$(hide) ln -sf $(RECOVERY_BINARY) $@
 
-ALL_DEFAULT_INSTALLED_MODULES += $(RECOVERY_SYMLINKS)
-
-# Now let's do recovery symlinks
 BUSYBOX_LINKS := $(shell cat external/busybox/busybox-minimal.links)
 exclude := tune2fs mke2fs
 ifeq ($(BOARD_RECOVERY_USE_LIBTAR),true)
 exclude += tar
 endif
 RECOVERY_BUSYBOX_SYMLINKS := $(addprefix $(TARGET_RECOVERY_ROOT_OUT)/sbin/,$(filter-out $(exclude),$(notdir $(BUSYBOX_LINKS))))
+
+LOCAL_ADDITIONAL_DEPENDENCIES := \
+    killrecovery.sh \
+    parted \
+    sdparted \
+    su.recovery \
+    install-su.sh \
+    install-recovery.sh \
+    99SuperSUDaemon
+
+LOCAL_ADDITIONAL_DEPENDENCIES += \
+    minivold \
+    recovery_e2fsck \
+    recovery_mke2fs \
+    recovery_tune2fs \
+    mount.exfat_static
+
+LOCAL_ADDITIONAL_DEPENDENCIES += $(RECOVERY_SYMLINKS) $(RECOVERY_BUSYBOX_SYMLINKS)
+
+LOCAL_ADDITIONAL_DEPENDENCIES += updater
+
+LOCAL_ADDITIONAL_DEPENDENCIES += \
+    zip \
+    raw-backup.sh \
+    bootscripts_mnt.sh \
+    stitch.png
+
+ifdef PHILZ_TOUCH_RECOVERY
+LOCAL_ADDITIONAL_DEPENDENCIES += \
+    virtual_keys.png
+endif
+
+include $(BUILD_EXECUTABLE)
+
+$(RECOVERY_SYMLINKS): RECOVERY_BINARY := $(LOCAL_MODULE)
+$(RECOVERY_SYMLINKS):
+	@echo "Symlink: $@ -> $(RECOVERY_BINARY)"
+	@mkdir -p $(dir $@)
+	@rm -rf $@
+	$(hide) ln -sf $(RECOVERY_BINARY) $@
+
+# Now let's do recovery symlinks
 $(RECOVERY_BUSYBOX_SYMLINKS): BUSYBOX_BINARY := busybox
-$(RECOVERY_BUSYBOX_SYMLINKS): $(LOCAL_INSTALLED_MODULE)
+$(RECOVERY_BUSYBOX_SYMLINKS):
 	@echo "Symlink: $@ -> $(BUSYBOX_BINARY)"
 	@mkdir -p $(dir $@)
 	@rm -rf $@
 	$(hide) ln -sf $(BUSYBOX_BINARY) $@
-
-ALL_DEFAULT_INSTALLED_MODULES += $(RECOVERY_BUSYBOX_SYMLINKS) 
 
 # Reboot static library
 include $(CLEAR_VARS)
